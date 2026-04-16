@@ -1,0 +1,31 @@
+# Secrets
+.env
+*.env
+
+# macOS
+.DS_Store
+
+# Node
+node_modules/
+
+# SQLite
+jobs.db
+*.db-shm
+*.db-wal
+
+# Generated files
+*.pdf
+jobs.json
+transcript.md
+profiles/*/jobs.json
+public/bookmarklet.js
+
+# Personal context and per-user profile (copy .context.example and profiles/example to set up your own)
+/.context/
+/profiles/*/
+!/profiles/example/
+
+# Logs
+logs/
+
+.aider*

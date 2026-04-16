@@ -1,0 +1,105 @@
+'use strict';
+
+const { describe, it } = require('node:test');
+const assert = require('node:assert/strict');
+
+const { renderJobTable } = require('../lib/html/job-rows');
+
+describe('renderJobTable', () => {
+  it('renders company badges with stable ordering and an applied-date badge', () => {
+    const html = renderJobTable([
+      {
+        id: 'job-1',
+        title: 'Platform Engineer',
+        company: 'Acme',
+        url: 'https://example.com/jobs/1',
+        location: 'Remote',
+        description: 'Salary range: $150k - $180k',
+        status: 'applied',
+        stage: 'applied',
+        applied_at: '2026-04-14T12:00:00Z',
+        score: 9,
+        apply_complexity: 'complex',
+      },
+    ], {}, { acme: ['zeta', 'agency', 'alpha'] }, 'applied', 'score', '', null);
+
+    assert.match(html, /class="job-badges"/);
+    assert.match(html, /Applied 2026-04-14/);
+
+    const agencyIndex = html.indexOf('>agency<');
+    const alphaIndex = html.indexOf('>alpha<');
+    const zetaIndex = html.indexOf('>zeta<');
+    const appliedDateIndex = html.indexOf('>Applied 2026-04-14<');
+    const complexityIndex = html.indexOf('>complex<');
+
+    assert.ok(agencyIndex >= 0);
+    assert.ok(alphaIndex > agencyIndex);
+    assert.ok(zetaIndex > alphaIndex);
+    assert.ok(appliedDateIndex > zetaIndex);
+    assert.ok(complexityIndex > appliedDateIndex);
+  });
+
+  it('preserves search state in pagination and sort links', () => {
+    const html = renderJobTable([
+      {
+        id: 'job-2',
+        title: 'Platform Engineer',
+        company: 'Acme',
+        url: 'https://example.com/jobs/2',
+        location: 'Remote',
+        description: 'AWS and Kubernetes',
+        status: 'pending',
+        stage: '',
+        posted_at: '2026-04-14',
+        score: 8,
+      },
+    ], {}, {}, 'all', 'score', '1', {
+      page: 2,
+      totalPages: 3,
+      startItem: 26,
+      endItem: 50,
+      totalItems: 61,
+    }, {
+      q: 'platform aws',
+      minScore: 8,
+    });
+
+    assert.match(html, /href="\/\?filter=all&sort=score&level=1&q=platform\+aws&minScore=8"/);
+    assert.match(html, /href="\/\?filter=all&sort=score&level=1&q=platform\+aws&minScore=8&page=3"/);
+    assert.match(html, /onclick="location='\/\?filter=all&sort=date&level=1&q=platform\+aws&minScore=8'"/);
+  });
+
+  it('shows pending auto state badges for blocked and eligible jobs', () => {
+    const html = renderJobTable([
+      {
+        id: 'job-3',
+        title: 'Infrastructure Engineer',
+        company: 'Blocked Ashby Co',
+        url: 'https://jobs.ashbyhq.com/blocked/12345678-1234-1234-1234-123456789012',
+        location: 'Remote',
+        description: '',
+        status: 'pending',
+        stage: null,
+        score: 8,
+        apply_complexity: 'simple',
+      },
+      {
+        id: 'job-4',
+        title: 'DevOps Engineer',
+        company: 'Lever Co',
+        url: 'https://jobs.lever.co/leverco/12345678-1234-1234-1234-123456789012',
+        location: 'Remote',
+        description: '',
+        status: 'pending',
+        stage: null,
+        score: 8,
+        apply_complexity: 'simple',
+      },
+    ], {}, {}, 'not-applied', 'score', '', null);
+
+    assert.match(html, /Auto-apply blocked: ashby is disabled in unattended mode/);
+    assert.match(html, /Eligible for unattended apply via lever/);
+    assert.match(html, /class="complexity-badge auto-failed"[^>]*>auto&#10007;<\/span>/);
+    assert.match(html, /class="complexity-badge auto-ready"[^>]*>auto<\/span>/);
+  });
+});

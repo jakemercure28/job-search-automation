@@ -1,0 +1,32 @@
+{
+  "name": "job-search",
+  "version": "1.0.0",
+  "description": "Automated job search workflow",
+  "type": "commonjs",
+  "scripts": {
+    "start": "set -a && . .env && set +a && node dashboard.js",
+    "scrape": "set -a && . .env && set +a && node scraper.js",
+    "pipeline": "set -a && . .env && set +a && node pipeline.js",
+    "daily": "bash run-daily.sh",
+    "reclassify": "set -a && . .env && set +a && node reclassify-complexity.js",
+    "sync-rejections": "node sync-rejection-emails.js",
+    "retry-unscored": "set -a && . .env && set +a && node retry-unscored.js",
+    "auto-apply": "set -a && . .env && set +a && node run-auto-apply.js",
+    "score": "set -a && . .env && set +a && node scorer.js",
+    "resume": "node generate-resume.js",
+    "build:bookmarklet": "set -a && . .env && set +a && node scripts/build-bookmarklet.js",
+    "test": "node --test",
+    "validate-slugs": "node validate-slugs.js",
+    "validate-slugs:broken": "node validate-slugs.js --broken-only"
+  },
+  "dependencies": {
+    "better-sqlite3": "^12.9.0",
+    "imapflow": "^1.3.1",
+    "puppeteer-core": "^24.39.1",
+    "puppeteer-extra": "^3.3.6",
+    "puppeteer-extra-plugin-stealth": "^2.11.2"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}

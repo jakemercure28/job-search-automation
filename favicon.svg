@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
+  <rect width="100" height="100" fill="#0f172a"/>
+  <!-- Briefcase -->
+  <rect x="20" y="30" width="60" height="45" fill="#22c55e" rx="3" stroke="#334155" stroke-width="2"/>
+  <rect x="35" y="25" width="30" height="8" fill="#22c55e" rx="2"/>
+  <!-- Handle -->
+  <path d="M 40 25 Q 50 15 60 25" stroke="#22c55e" stroke-width="2" fill="none"/>
+  <!-- Divider -->
+  <line x1="50" y1="30" x2="50" y2="75" stroke="#334155" stroke-width="1"/>
+</svg>
