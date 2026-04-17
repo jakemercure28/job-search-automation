@@ -17,7 +17,7 @@ const Database = require('better-sqlite3');
 
 const REPO_ROOT = __dirname;
 const CONTEXT_DIR = path.join(REPO_ROOT, '.context');
-const DB_PATH = path.join(__dirname, 'profiles', 'example', 'jobs.db');
+const DB_PATH = process.env.JOB_DB_PATH || path.join(__dirname, 'profiles', 'example', 'jobs.db');
 
 function run(cmd) {
   return execSync(cmd, { cwd: REPO_ROOT, encoding: 'utf8' }).trim();
