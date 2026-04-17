@@ -61,7 +61,7 @@ async function refreshGreenhouse(job) {
 const _ashbyCache = {};
 async function fetchAshbyBoard(slug) {
   if (_ashbyCache[slug]) return _ashbyCache[slug];
-  const res = await fetch(`https://api.ashbyhq.com/posting-api/job-board/${slug}`).catch(() => null);
+  const res = await fetch(`https://api.ashbyhq.com/posting-api/job-board/${slug}?includeCompensation=true`).catch(() => null);
   if (!res?.ok) return null;
   const data = await res.json().catch(() => null);
   _ashbyCache[slug] = data?.jobs || [];
@@ -80,7 +80,12 @@ async function refreshAshby(job) {
   if (!found) return { ok: false, reason: 'not on board (closed?)' };
 
   const { MAX_DESCRIPTION_LENGTH } = require('./config/constants');
-  const desc = (found.descriptionPlain || stripHtml(found.descriptionHtml || '')).slice(0, MAX_DESCRIPTION_LENGTH);
+  const baseDesc = found.descriptionPlain || stripHtml(found.descriptionHtml || '');
+  const salarySummary = found.compensation?.scrapeableCompensationSalarySummary
+    || found.compensation?.compensationTierSummary
+    || '';
+  const desc = (salarySummary ? `Compensation: ${salarySummary}\n\n${baseDesc}` : baseDesc)
+    .slice(0, MAX_DESCRIPTION_LENGTH);
   const loc  = found.location || found.address?.postalAddress?.addressLocality || (found.isRemote ? 'Remote' : job.location);
   return { ok: true, desc, loc };
 }
