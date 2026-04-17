@@ -21,6 +21,14 @@ const MAX_TRANSCRIPT_LENGTH = 15000;
 
 // Dashboard
 const DASHBOARD_PORT = parseInt(process.env.DASHBOARD_PORT, 10) || 3131;
+const DASHBOARD_HOST = process.env.DASHBOARD_HOST || 'localhost';
+const DASHBOARD_BASE_URL = process.env.DASHBOARD_BASE_URL || `http://${DASHBOARD_HOST}:${DASHBOARD_PORT}`;
+
+// Score thresholds (used across UI rendering + filters)
+const SCORE_STRONG = 8;
+const SCORE_GOOD = 7;
+const SCORE_MID = 6;
+const SCORE_BORDERLINE = 5;
 
 // Gemini free tier daily request limit
 const GEMINI_DAILY_LIMIT = 500;
@@ -42,6 +50,12 @@ module.exports = {
   MAX_DESCRIPTION_LENGTH,
   MAX_TRANSCRIPT_LENGTH,
   DASHBOARD_PORT,
+  DASHBOARD_HOST,
+  DASHBOARD_BASE_URL,
+  SCORE_STRONG,
+  SCORE_GOOD,
+  SCORE_MID,
+  SCORE_BORDERLINE,
   GEMINI_DAILY_LIMIT,
   DAILY_TARGET,
   AI_TITLE_KW,
