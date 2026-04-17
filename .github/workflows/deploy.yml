@@ -1,0 +1,41 @@
+name: Deploy to iMac
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Connect to Tailscale
+        uses: tailscale/github-action@v4
+        with:
+          oauth-client-id: ${{ secrets.TS_OAUTH_CLIENT_ID }}
+          oauth-secret: ${{ secrets.TS_OAUTH_SECRET }}
+          tags: tag:ci
+
+      - name: Deploy to iMac
+        uses: appleboy/ssh-action@v1
+        env:
+          DEPLOY_LAUNCHD_SERVICE: ${{ secrets.DEPLOY_LAUNCHD_SERVICE }}
+        with:
+          host: ${{ secrets.DEPLOY_HOST }}
+          username: ${{ secrets.DEPLOY_USER }}
+          key: ${{ secrets.DEPLOY_SSH_KEY }}
+          envs: DEPLOY_LAUNCHD_SERVICE
+          script: |
+            cd ~/job-search-automation
+            git fetch origin main
+            git reset --hard origin/main
+            launchctl kickstart -k gui/$(id -u)/$DEPLOY_LAUNCHD_SERVICE
+            for i in 1 2 3 4 5 6 7 8 9 10; do
+              if curl --silent --show-error --fail http://127.0.0.1:3131/healthz >/dev/null; then
+                echo "Dashboard health check passed"
+                exit 0
+              fi
+              sleep 2
+            done
+            tail -n 80 /tmp/job-search-dashboard.log || true
+            echo "Dashboard health check failed after restart" >&2
+            exit 1
