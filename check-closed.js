@@ -276,7 +276,7 @@ async function main() {
       skipped++;
     } else if (result === 'closed') {
       db.prepare(`
-        UPDATE jobs SET stage='closed', updated_at=datetime('now') WHERE id=?
+        UPDATE jobs SET stage='closed', status='archived', updated_at=datetime('now') WHERE id=?
       `).run(job.id);
       logEvent(db, job.id, 'stage_change', job.stage || null, 'closed');
       console.log(`  [closed] ${job.company} / ${job.title} (${job.platform})`);

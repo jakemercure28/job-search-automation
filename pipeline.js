@@ -21,7 +21,8 @@ const {
   updateJobScore,
 } = require('./lib/db');
 const { scoreJob } = require('./scorer');
-const { callGemini } = require('./lib/gemini');
+const { callGemini, MODEL } = require('./lib/gemini');
+const { GEMINI_DAILY_LIMIT } = require('./config/constants');
 const { classifyComplexity } = require('./lib/complexity');
 const { run: autoApply } = require('./lib/auto-applier');
 const log = require('./lib/logger')('pipeline');
@@ -136,8 +137,17 @@ async function run() {
   });
   const { inserted, skipped } = insertAndDedup(scraped);
 
-  // Score all unscored jobs (outside transaction — each makes an API call, save partial progress)
-  const toScore = getUnscoredJobs(db);
+  // Score unscored jobs, respecting the daily API quota
+  const todayStr = new Date().toLocaleDateString('en-CA');
+  const usedToday = db.prepare(
+    "SELECT COALESCE(SUM(call_count), 0) as n FROM api_usage WHERE date = ? AND model = ?"
+  ).get(todayStr, MODEL).n;
+  const remainingQuota = Math.max(0, GEMINI_DAILY_LIMIT - usedToday - 10); // reserve 10 for summary + retries
+  const toScore = getUnscoredJobs(db, { limit: remainingQuota });
+  if (usedToday > 0 || remainingQuota < GEMINI_DAILY_LIMIT) {
+    log.info('Daily quota check', { usedToday, remainingQuota, toScore: toScore.length });
+  }
+
   const archiveThreshold = parseInt(process.env.AUTO_ARCHIVE_THRESHOLD, 10) || 4;
   const autoArchive = db.prepare("UPDATE jobs SET status='archived', updated_at=datetime('now') WHERE id=? AND score <= ?");
 
