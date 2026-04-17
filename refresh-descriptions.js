@@ -9,7 +9,8 @@
  * Usage: node refresh-descriptions.js
  */
 
-const db = require('better-sqlite3')('profiles/example/jobs.db');
+const DB_PATH = process.env.JOB_DB_PATH || 'profiles/example/jobs.db';
+const db = require('better-sqlite3')(DB_PATH);
 const { stripHtml } = require('./lib/utils');
 const { ASHBY_COMPANIES, GREENHOUSE_COMPANIES, LEVER_COMPANIES } = require('./config/companies');
 const { sleep } = require('./lib/utils');
