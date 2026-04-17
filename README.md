@@ -4,6 +4,28 @@ An end-to-end automation pipeline for a technical job search. Scrapes 11 ATS pla
 
 Designed for a single applicant (or a small group sharing one machine), not as a SaaS. The point is to get the benefits of a structured pipeline without spinning up infrastructure for it.
 
+## Screenshots
+
+### Dashboard — scored, ranked, filterable job listings
+![Dashboard](docs/screenshots/dashboard.png)
+
+### Applied pipeline — track stage progression
+![Applied pipeline](docs/screenshots/applied.png)
+
+### Analytics — pipeline funnel + score calibration
+![Analytics](docs/screenshots/analytics.png)
+
+### Market Research — LLM gap analysis against your resume
+![Market Research](docs/screenshots/market-research.png)
+
+### Interviewing, rejected, and activity log views
+<p float="left">
+  <img src="docs/screenshots/interviewing.png" width="32%" alt="Interviewing" />
+  <img src="docs/screenshots/rejected.png" width="32%" alt="Rejected" />
+  <img src="docs/screenshots/activity-log.png" width="32%" alt="Activity log" />
+</p>
+
+
 ## Architecture
 
 ```
@@ -112,10 +134,10 @@ More detail in `.context.example/decisions/`.
 ## Setup
 
 ```bash
-git clone <this-repo>
-cd job-search
+git clone https://github.com/jakemercure28/job-search-automation.git
+cd job-search-automation
 
-# 1. Dependencies
+# 1. Dependencies (Node 18+ required, see `.nvmrc` if using nvm)
 npm install
 
 # 2. Config
@@ -133,7 +155,8 @@ cp -r profiles/example profiles/your-name
 cp -r .context.example .context
 # edit .context/people/applicant.md, voice.md as appropriate
 
-# 5. Update .env to point at your profile
+# 5. Point .env at your profile (update these two lines in .env;
+#    do not add a second copy, the last occurrence wins under `set -a`):
 #   JOB_PROFILE_DIR=profiles/your-name
 #   JOB_DB_PATH=profiles/your-name/jobs.db
 
@@ -141,6 +164,21 @@ cp -r .context.example .context
 npm run daily
 npm start            # dashboard on http://localhost:3131
 ```
+
+### Try it with demo data (no API key required)
+
+If you just want to see the dashboard populated without scraping or scoring:
+
+```bash
+cp .env.example .env
+cp -r profiles/example profiles/demo
+# set JOB_PROFILE_DIR=profiles/demo and JOB_DB_PATH=profiles/demo/jobs.db in .env
+node scripts/seed-demo.js
+npm start
+# open http://localhost:3131
+```
+
+The seed script populates 20 fake jobs, pipeline stages, and a pre-computed market-research snapshot so every view in the screenshots above renders end-to-end.
 
 ## Common commands
 
