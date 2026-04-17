@@ -28,4 +28,14 @@ public/bookmarklet.js
 # Logs
 logs/
 
+# Cache files (company targeting, ATS slug health) are per-user
+market-research-cache.json
+slug-health.json
+
+# Deploy automation stays local (never ship iMac infra details publicly)
+.github/workflows/
+
+# Claude skills can contain infra credentials; keep them out of the repo
+.claude/skills/
+
 .aider*
