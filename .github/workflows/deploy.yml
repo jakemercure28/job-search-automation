@@ -17,15 +17,18 @@ jobs:
 
       - name: Deploy to iMac
         uses: appleboy/ssh-action@v1
+        env:
+          DEPLOY_LAUNCHD_SERVICE: ${{ secrets.DEPLOY_LAUNCHD_SERVICE }}
         with:
           host: ${{ secrets.DEPLOY_HOST }}
           username: ${{ secrets.DEPLOY_USER }}
           key: ${{ secrets.DEPLOY_SSH_KEY }}
+          envs: DEPLOY_LAUNCHD_SERVICE
           script: |
-            cd ~/job-search
+            cd ~/job-search-automation
             git fetch origin main
             git reset --hard origin/main
-            launchctl kickstart -k gui/$(id -u)/com.user.job-search-dashboard
+            launchctl kickstart -k gui/$(id -u)/$DEPLOY_LAUNCHD_SERVICE
             for i in 1 2 3 4 5 6 7 8 9 10; do
               if curl --silent --show-error --fail http://127.0.0.1:3131/healthz >/dev/null; then
                 echo "Dashboard health check passed"
