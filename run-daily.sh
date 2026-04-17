@@ -4,6 +4,23 @@ set -e
 #   export PATH="/opt/homebrew/bin:$PATH"
 cd "$(dirname "$0")"
 
+# Safely load a .env file — handles values with spaces without trying to
+# execute words after the first space as shell commands (unlike `source`).
+load_env() {
+  local file="$1"
+  [ -f "$file" ] || return 0
+  while IFS= read -r line || [ -n "$line" ]; do
+    [[ "$line" =~ ^[[:space:]]*# ]] && continue
+    [[ -z "${line//[[:space:]]/}" ]] && continue
+    local key="${line%%=*}"
+    local val="${line#*=}"
+    key="${key#"${key%%[![:space:]]*}"}"
+    key="${key%"${key##*[![:space:]]}"}"
+    [ -z "$key" ] && continue
+    export "$key=$val"
+  done < "$file"
+}
+
 # Scrape and run pipeline for each profile
 # Each profile has its own companies.js (search terms + company lists)
 # and its own DB, resume, and context files.
@@ -14,7 +31,8 @@ for profile_dir in profiles/*/; do
 
     # Reset profile env vars, then load base + profile env
     unset JOB_PROFILE_DIR JOB_DB_PATH DASHBOARD_PORT
-    set -a; source .env; source "$profile_dir/.env"; set +a
+    load_env .env
+    load_env "$profile_dir/.env"
 
     echo "[run-daily] Scraping for $profile..."
     node scraper.js
