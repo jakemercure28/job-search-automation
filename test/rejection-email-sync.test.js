@@ -89,6 +89,7 @@ describe('rejection email sync', () => {
     });
 
     const summary = await syncRejectionEmails(db, {
+      skipTrash: true,
       fetchMessages: makeFetcher([
         makeMessage({
           uid: 11,
@@ -159,6 +160,7 @@ describe('rejection email sync', () => {
     });
 
     const summary = await syncRejectionEmails(db, {
+      skipTrash: true,
       fetchMessages: makeFetcher([
         makeMessage({
           uid: 12,
@@ -224,8 +226,8 @@ describe('rejection email sync', () => {
       }),
     ]);
 
-    const first = await syncRejectionEmails(db, { fetchMessages, dryRun: true });
-    const second = await syncRejectionEmails(db, { fetchMessages, dryRun: true });
+    const first = await syncRejectionEmails(db, { fetchMessages, dryRun: true, skipTrash: true });
+    const second = await syncRejectionEmails(db, { fetchMessages, dryRun: true, skipTrash: true });
     const rows = db.prepare('SELECT COUNT(*) AS n FROM rejection_email_log').get();
 
     assert.equal(first.dryRun, 1);
