@@ -26,18 +26,18 @@ const GREENHOUSE_COMPANIES = [
   'airbnb',
   'coinbase',
   'dropbox',
-  'hashicorp',
+  // hashicorp removed — IBM acquisition, board defunct as of Apr 2026
   'datadog',
   'anthropic',
+  'figma',   // moved from Lever → Greenhouse
+  'vercel',  // moved from Lever → Greenhouse
 ];
 
 // Lever boards: https://jobs.lever.co/<slug>
 const LEVER_COMPANIES = [
   'netflix',
-  'github',
-  'figma',
-  'vercel',
-  'ramp',
+  // github removed — not found on Lever/Greenhouse/Ashby (likely Workday via Microsoft)
+  // ramp removed — board empty/unreachable across all checked ATS as of Apr 2026
 ];
 
 // Workable boards: https://apply.workable.com/<slug>
