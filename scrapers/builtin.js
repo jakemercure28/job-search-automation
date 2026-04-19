@@ -57,19 +57,18 @@ function parseJobPage(html, pageUrl) {
   const jobLocations = Array.isArray(posting.jobLocation)
     ? posting.jobLocation
     : posting.jobLocation ? [posting.jobLocation] : [];
-  const location = jobLocations[0]?.address || {};
 
-  // Build location string
+  // Build location string — join all offices with | so the location filter
+  // checks every location and keeps the job if any one qualifies
   let locationStr = '';
   if (posting.jobLocationType === 'TELECOMMUTE') {
     locationStr = 'Remote';
-  } else if (jobLocations.length > 1) {
-    // Multiple offices — use city of first location
-    const parts = [location.addressLocality, location.addressRegion].filter(Boolean);
-    locationStr = parts.join(', ') || '';
-  } else {
-    const parts = [location.addressLocality, location.addressRegion, location.addressCountry].filter(Boolean);
-    locationStr = parts.join(', ') || '';
+  } else if (jobLocations.length > 0) {
+    const locationParts = jobLocations.map((loc) => {
+      const addr = loc.address || {};
+      return [addr.addressLocality, addr.addressRegion].filter(Boolean).join(', ');
+    }).filter(Boolean);
+    locationStr = locationParts.join('|');
   }
 
   // Build salary string for description context
