@@ -53,12 +53,20 @@ function parseJobPage(html, pageUrl) {
 
   const org = posting.hiringOrganization || {};
   const salary = posting.baseSalary?.value || {};
-  const location = posting.jobLocation?.address || {};
+  // jobLocation can be a single object or an array of locations
+  const jobLocations = Array.isArray(posting.jobLocation)
+    ? posting.jobLocation
+    : posting.jobLocation ? [posting.jobLocation] : [];
+  const location = jobLocations[0]?.address || {};
 
   // Build location string
   let locationStr = '';
   if (posting.jobLocationType === 'TELECOMMUTE') {
     locationStr = 'Remote';
+  } else if (jobLocations.length > 1) {
+    // Multiple offices — use city of first location
+    const parts = [location.addressLocality, location.addressRegion].filter(Boolean);
+    locationStr = parts.join(', ') || '';
   } else {
     const parts = [location.addressLocality, location.addressRegion, location.addressCountry].filter(Boolean);
     locationStr = parts.join(', ') || '';
