@@ -23,7 +23,7 @@ const DELAY_MS = 1200; // Gemini rate limit buffer
 
 async function main() {
   const jobs = db.prepare(`
-    SELECT id, company, title, platform, description, score, claude_score
+    SELECT id, company, title, platform, description, score
     FROM jobs
     WHERE status != 'archived'
       AND stage NOT IN ('closed', 'offer')

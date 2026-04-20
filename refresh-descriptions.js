@@ -158,7 +158,7 @@ async function refreshBuiltIn(job) {
 
 async function main() {
   const jobs = db.prepare(`
-    SELECT id, company, title, platform, url, score, claude_score, location
+    SELECT id, company, title, platform, url, score, location
     FROM jobs
     WHERE status != 'archived'
     ORDER BY platform, company

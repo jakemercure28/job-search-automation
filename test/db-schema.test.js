@@ -207,7 +207,6 @@ describe('db schema helpers', () => {
     assert.equal(Number(schemaVersion.value), MIGRATIONS.length);
     assert.ok(jobColumns.has('rejection_reasoning'));
     assert.ok(jobColumns.has('auto_apply_status'));
-    assert.ok(jobColumns.has('claude_score'));
     assert.ok(jobColumns.has('score_attempts'));
     assert.ok(jobColumns.has('last_score_attempt_at'));
     assert.ok(jobColumns.has('score_error'));
