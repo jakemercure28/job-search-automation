@@ -37,13 +37,21 @@ function toggleJobMenu(id, btn) {
   const menu = document.getElementById('jmenu-' + id);
   if (!menu) return;
   const wasOpen = menu.classList.contains('open');
-  // Close all other open job menus
-  document.querySelectorAll('.job-actions-menu.open').forEach(m => m.classList.remove('open'));
-  if (!wasOpen) menu.classList.add('open');
+  document.querySelectorAll('.job-actions-menu.open').forEach(m => {
+    m.classList.remove('open');
+    m.closest('.job-card')?.classList.remove('menu-active');
+  });
+  if (!wasOpen) {
+    menu.classList.add('open');
+    menu.closest('.job-card')?.classList.add('menu-active');
+  }
 }
 
 function closeJobMenu(id) {
-  document.getElementById('jmenu-' + id)?.classList.remove('open');
+  const menu = document.getElementById('jmenu-' + id);
+  if (!menu) return;
+  menu.classList.remove('open');
+  menu.closest('.job-card')?.classList.remove('menu-active');
 }
 
 function toggleInsights() {
@@ -91,7 +99,10 @@ document.addEventListener('click', e => {
 
   // Job action menus
   if (!e.target.closest('.job-col-actions')) {
-    document.querySelectorAll('.job-actions-menu.open').forEach(m => m.classList.remove('open'));
+    document.querySelectorAll('.job-actions-menu.open').forEach(m => {
+      m.classList.remove('open');
+      m.closest('.job-card')?.classList.remove('menu-active');
+    });
   }
 });
 

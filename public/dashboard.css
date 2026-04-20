@@ -1126,6 +1126,10 @@ header {
 
 .job-actions-menu.open { display: block; }
 
+.job-card.menu-active {
+  z-index: 100;
+}
+
 .job-action-item {
   display: flex;
   align-items: center;
