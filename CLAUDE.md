@@ -36,6 +36,20 @@ Then edit both to reflect you. `.context/` and profiles other than `example/` ar
 
 **Never use em dashes, en dashes, or hyphens as sentence connectors.** Rewrite with a comma or period instead. No exceptions, anywhere in the output.
 
+## Slash commands
+
+The following commands are available in both Claude Code (`.claude/commands/`) and Codex (`.ai/skills/shared/`, linked via `scripts/link-codex-skills.sh`):
+
+| Command | When to use |
+|---|---|
+| `/load-context` | Start of any job-search or career session. Reads `.context/` and the active profile. |
+| `/job-search` | Review pending listings, approve/reject, check stats, run the pipeline. |
+| `/interview-prep [email or JD]` | Generate phone screen prep notes from a job description or recruiter email. |
+| `/app-questions [question text]` | Answer application form questions in the applicant's voice. |
+| `/save-context` | End of session. Persist anything learned back to `.context/`. |
+
+All commands read `JOB_PROFILE_DIR` and `JOB_DB_PATH` from `.env` to find the active profile.
+
 ## Git workflow
 
 Prefer small, reviewable commits with clear messages. Stage only files relevant to the task.

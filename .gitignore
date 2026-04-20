@@ -37,7 +37,9 @@ slug-health-dismissed.json
 # Deploy automation stays local (never ship iMac infra details publicly)
 .github/workflows/
 
-# Claude skills can contain infra credentials; keep them out of the repo
+# Claude user-level skill overrides stay local (may contain personal paths)
 .claude/skills/
+# Claude local settings stay local (may contain personal tool permissions)
+.claude/settings.local.json
 
 .aider*
