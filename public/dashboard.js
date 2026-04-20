@@ -224,7 +224,7 @@ function applyFilters() {
     const nextUrl = `/?${params.toString()}`;
     const currentUrl = `${window.location.pathname}${window.location.search}`;
     if (nextUrl !== currentUrl) window.location.assign(nextUrl);
-  }, 250);
+  }, 600);
 }
 
 // ---------------------------------------------------------------------------
