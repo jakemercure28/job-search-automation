@@ -199,6 +199,31 @@ async function archiveJob(id, btn) {
   }
 }
 
+async function autoApplyJob(id, btn) {
+  btn.disabled = true;
+  btn.textContent = 'Applying...';
+  const res = await fetch('/auto-apply', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ id }),
+  });
+  if (res.ok) {
+    const data = await res.json();
+    const card = btn.closest('.job-card');
+    if (card) {
+      const badge = card.querySelector('.auto-ready');
+      if (badge) { badge.className = badge.className.replace('auto-ready', 'auto-applied'); badge.textContent = 'auto'; }
+    }
+    showToast(data.securityCode ? `Applied (code: ${data.securityCode})` : 'Applied', '#16a34a');
+    btn.remove();
+  } else {
+    const data = await res.json().catch(() => ({}));
+    showToast(`Apply failed: ${data.error || res.statusText}`, '#dc2626');
+    btn.disabled = false;
+    btn.textContent = 'Apply Now';
+  }
+}
+
 function positionSortThumb() {
   const active = document.querySelector('.sort-opt.active');
   const thumb = document.getElementById('sort-thumb');

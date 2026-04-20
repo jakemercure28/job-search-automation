@@ -1,8 +1,10 @@
 'use strict';
 
+const path = require('path');
 const { loadDashboardEnv } = require('../lib/env');
 const { getDb } = require('../lib/db');
-const autoApplyConfig = require('../profiles/example/auto-apply-config');
+const profileDir = process.env.JOB_PROFILE_DIR || path.join(__dirname, '..', 'profiles', 'example');
+const autoApplyConfig = require(path.join(profileDir, 'auto-apply-config'));
 const { run: runAutoApply } = require('../lib/auto-applier');
 const log = require('../lib/logger')('run-auto-apply');
 

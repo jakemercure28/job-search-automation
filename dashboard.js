@@ -39,6 +39,7 @@ const {
   handleHelpPage,
   handleMarketResearch,
   handleDismissSlugBanner,
+  handleAutoApply,
 } = require('./lib/dashboard-routes');
 
 const PORT = DASHBOARD_PORT;
@@ -76,6 +77,7 @@ const routes = {
   'GET /job-bookmarklet.js': handleJobBookmarkletScript,
   'POST /market-research':   handleMarketResearch,
   'POST /dismiss-slug-banner': handleDismissSlugBanner,
+  'POST /auto-apply':        handleAutoApply,
   'GET /help':               handleHelpPage,
   'GET /':                   handleDashboardPage,
 };
