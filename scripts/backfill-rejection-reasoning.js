@@ -2,8 +2,8 @@
 
 // One-time backfill: generate rejection_reasoning for all applied jobs that don't have it yet.
 
-const { getDb } = require('./lib/db');
-const { scoreRejectionLikelihood } = require('./scorer');
+const { getDb } = require('../lib/db');
+const { scoreRejectionLikelihood } = require('../scorer');
 
 async function main() {
   const db = getDb();

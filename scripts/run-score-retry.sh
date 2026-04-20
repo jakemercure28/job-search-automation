@@ -2,7 +2,7 @@
 set -e
 # If node is not on PATH when running under cron/launchd, prepend its directory here:
 #   export PATH="/opt/homebrew/bin:$PATH"
-cd "$(dirname "$0")"
+cd "$(dirname "$0")/.."
 
 for profile_dir in profiles/*/; do
   if [ -f "$profile_dir/.env" ]; then
@@ -15,6 +15,6 @@ for profile_dir in profiles/*/; do
     source "$profile_dir/.env"
     set +a
 
-    node retry-unscored.js --limit=25 || true
+    node scripts/retry-unscored.js --limit=25 || true
   fi
 done

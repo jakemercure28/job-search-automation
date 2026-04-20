@@ -11,9 +11,9 @@
 
 const DB_PATH = process.env.JOB_DB_PATH || 'profiles/example/jobs.db';
 const db = require('better-sqlite3')(DB_PATH);
-const { stripHtml } = require('./lib/utils');
-const { ASHBY_COMPANIES, GREENHOUSE_COMPANIES, LEVER_COMPANIES } = require('./config/companies');
-const { sleep } = require('./lib/utils');
+const { stripHtml } = require('../lib/utils');
+const { ASHBY_COMPANIES, GREENHOUSE_COMPANIES, LEVER_COMPANIES } = require('../config/companies');
+const { sleep } = require('../lib/utils');
 
 const DELAY_MS = 350;
 const UA = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36';
@@ -80,7 +80,7 @@ async function refreshAshby(job) {
   const found = jobs.find(j => j.id === jobId);
   if (!found) return { ok: false, reason: 'not on board (closed?)' };
 
-  const { MAX_DESCRIPTION_LENGTH } = require('./config/constants');
+  const { MAX_DESCRIPTION_LENGTH } = require('../config/constants');
   const baseDesc = found.descriptionPlain || stripHtml(found.descriptionHtml || '');
   const salarySummary = found.compensation?.scrapeableCompensationSalarySummary
     || found.compensation?.compensationTierSummary

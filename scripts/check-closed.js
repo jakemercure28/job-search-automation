@@ -18,11 +18,11 @@
 const path = require('path');
 
 const Database = require('better-sqlite3');
-const { sleep } = require('./lib/utils');
-const { logEvent } = require('./lib/db');
-const log = require('./lib/logger')('check-closed');
+const { sleep } = require('../lib/utils');
+const { logEvent } = require('../lib/db');
+const log = require('../lib/logger')('check-closed');
 
-const DB_PATH = process.env.JOB_DB_PATH || path.join(__dirname, 'profiles/example/jobs.db');
+const DB_PATH = process.env.JOB_DB_PATH || path.join(__dirname, '../profiles/example/jobs.db');
 const db = new Database(DB_PATH);
 
 const DELAY_MS = 300; // between API calls

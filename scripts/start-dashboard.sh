@@ -10,5 +10,5 @@ if [ -n "$OLD_PID" ]; then
   sleep 1
 fi
 
-cd "$(dirname "$0")"
+cd "$(dirname "$0")/.."
 exec node dashboard.js

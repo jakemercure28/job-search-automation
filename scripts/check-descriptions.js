@@ -42,12 +42,12 @@ function writeJdHealth({ total, critical, warn }) {
     warn,
     total,
   };
-  const p = path.join(__dirname, 'jd-health.json');
+  const p = path.join(__dirname, '../jd-health.json');
   fs.writeFileSync(p, JSON.stringify(out, null, 2));
 }
 
 if (require.main === module) {
-  const { getDb } = require('./lib/db');
+  const { getDb } = require('../lib/db');
   const db = getDb();
   const { total, critical, warn, ok } = checkDescriptions(db);
 

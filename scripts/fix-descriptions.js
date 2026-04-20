@@ -13,8 +13,8 @@
  * Run once: node fix-descriptions.js
  */
 
-const { getDb } = require('./lib/db');
-const { stripHtml } = require('./lib/utils');
+const { getDb } = require('../lib/db');
+const { stripHtml } = require('../lib/utils');
 
 const db = getDb();
 

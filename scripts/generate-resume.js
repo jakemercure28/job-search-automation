@@ -14,7 +14,7 @@ const path = require('path');
 const puppeteer = require('puppeteer-core');
 
 const CHROME_PATH = process.env.PUPPETEER_EXECUTABLE_PATH || '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
-const profileDir = process.env.JOB_PROFILE_DIR || path.join(__dirname, 'profiles', 'example');
+const profileDir = process.env.JOB_PROFILE_DIR || path.join(__dirname, '..', 'profiles', 'example');
 const RESUME_SCALE = parseFloat(process.env.RESUME_SCALE) || 0.96;
 
 // Variants to generate: [inputMd, outputPdf]

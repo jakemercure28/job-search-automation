@@ -200,12 +200,12 @@ npm test                   # run the node test suite
 Suggested cron entries:
 
 ```
-7 8 * * *    cd /path/to/job-search && bash run-daily.sh      >> /tmp/job-search.log 2>&1
-7 14 * * *   cd /path/to/job-search && bash run-daily.sh      >> /tmp/job-search.log 2>&1
-30 * * * *   cd /path/to/job-search && bash run-score-retry.sh >> /tmp/job-search-score-retry.log 2>&1
+7 8 * * *    cd /path/to/job-search && bash scripts/run-daily.sh      >> /tmp/job-search.log 2>&1
+7 14 * * *   cd /path/to/job-search && bash scripts/run-daily.sh      >> /tmp/job-search.log 2>&1
+30 * * * *   cd /path/to/job-search && bash scripts/run-score-retry.sh >> /tmp/job-search-score-retry.log 2>&1
 ```
 
-Under launchd on macOS, a `KeepAlive`-enabled LaunchAgent running `start-dashboard.sh` keeps the UI alive across reboots.
+Under launchd on macOS, a `KeepAlive`-enabled LaunchAgent running `scripts/start-dashboard.sh` keeps the UI alive across reboots.
 
 ## Extending
 

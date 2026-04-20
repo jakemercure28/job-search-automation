@@ -1,6 +1,6 @@
 'use strict';
 
-const { getDb } = require('./lib/db');
+const { getDb } = require('../lib/db');
 
 const db = getDb();
 

@@ -11,10 +11,10 @@
 const fs = require('fs');
 const path = require('path');
 const Database = require('better-sqlite3');
-const { callGemini } = require('./lib/gemini');
-const { loadCanonicalClusters, saveCanonicalClusters, buildClusterRule } = require('./lib/canonical-clusters');
+const { callGemini } = require('../lib/gemini');
+const { loadCanonicalClusters, saveCanonicalClusters, buildClusterRule } = require('../lib/canonical-clusters');
 
-const PROFILE_DIR = process.env.JOB_PROFILE_DIR || path.join(__dirname, 'profiles', 'example');
+const PROFILE_DIR = process.env.JOB_PROFILE_DIR || path.join(__dirname, '..', 'profiles', 'example');
 const DB_PATH = process.env.JOB_DB_PATH || path.join(PROFILE_DIR, 'jobs.db');
 const CACHE_PATH = path.join(PROFILE_DIR, 'market-research-cache.json');
 const RESUME_PATH = path.join(PROFILE_DIR, 'resume-ai.md');

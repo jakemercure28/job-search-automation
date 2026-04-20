@@ -83,7 +83,7 @@ Show: approved / rejected this session, pending remaining, dashboard link at `ht
 
 **"run the pipeline now"** — run in background:
 ```bash
-/bin/zsh ./run-daily.sh >> /tmp/job-search.log 2>&1 &
+/bin/zsh ./scripts/run-daily.sh >> /tmp/job-search.log 2>&1 &
 echo "Running. Check /tmp/job-search.log for progress."
 ```
 

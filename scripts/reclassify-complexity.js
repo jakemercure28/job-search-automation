@@ -1,9 +1,9 @@
 'use strict';
 
-const { loadDashboardEnv } = require('./lib/env');
-const { getDb } = require('./lib/db');
-const { classifyComplexity } = require('./lib/complexity');
-const log = require('./lib/logger')('reclassify-complexity');
+const { loadDashboardEnv } = require('../lib/env');
+const { getDb } = require('../lib/db');
+const { classifyComplexity } = require('../lib/complexity');
+const log = require('../lib/logger')('reclassify-complexity');
 
 async function run() {
   loadDashboardEnv();

@@ -17,10 +17,10 @@ const path = require('path');
 const fs = require('fs');
 const Database = require('better-sqlite3');
 
-const dbPath = process.env.JOB_DB_PATH || path.join(__dirname, 'profiles', 'example', 'jobs.db');
+const dbPath = process.env.JOB_DB_PATH || path.join(__dirname, '..', 'profiles', 'example', 'jobs.db');
 const companiesPath = process.env.JOB_PROFILE_DIR
   ? path.join(process.env.JOB_PROFILE_DIR, 'companies.js')
-  : path.join(__dirname, 'profiles', 'example', 'companies.js');
+  : path.join(__dirname, '..', 'profiles', 'example', 'companies.js');
 
 const db = new Database(dbPath);
 
@@ -30,7 +30,7 @@ function getScorer() {
   if (_scoreJob) return _scoreJob;
   if (!process.env.GEMINI_API_KEY) return null;
   try {
-    _scoreJob = require('./scorer').scoreJob;
+    _scoreJob = require('../scorer').scoreJob;
     return _scoreJob;
   } catch (e) {
     return null;

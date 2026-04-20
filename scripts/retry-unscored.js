@@ -1,16 +1,16 @@
 'use strict';
 
-const { requireEnv } = require('./lib/env');
+const { requireEnv } = require('../lib/env');
 const {
   getDb,
   getUnscoredJobs,
   markJobScoreAttempt,
   markJobScoreFailure,
   updateJobScore,
-} = require('./lib/db');
-const { classifyComplexity } = require('./lib/complexity');
-const { scoreJob } = require('./scorer');
-const log = require('./lib/logger')('score-retry');
+} = require('../lib/db');
+const { classifyComplexity } = require('../lib/complexity');
+const { scoreJob } = require('../scorer');
+const log = require('../lib/logger')('score-retry');
 
 const DEFAULT_LIMIT = 25;
 

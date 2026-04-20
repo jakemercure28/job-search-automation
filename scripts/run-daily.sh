@@ -2,7 +2,7 @@
 set -e
 # If node is not on PATH when running under cron/launchd, prepend its directory here:
 #   export PATH="/opt/homebrew/bin:$PATH"
-cd "$(dirname "$0")"
+cd "$(dirname "$0")/.."
 
 # Safely load a .env file — handles values with spaces without trying to
 # execute words after the first space as shell commands (unlike `source`).
@@ -41,23 +41,23 @@ for profile_dir in profiles/*/; do
     node pipeline.js
 
     echo "[run-daily] Checking description quality for $profile..."
-    node check-descriptions.js || true
+    node scripts/check-descriptions.js || true
 
     echo "[run-daily] Checking for closed jobs for $profile..."
-    node check-closed.js
+    node scripts/check-closed.js
 
     echo "[run-daily] Running market research for $profile..."
-    node run-market-research.js || true
+    node scripts/run-market-research.js || true
 
     echo "[run-daily] Retrying any pending unscored jobs for $profile..."
-    node retry-unscored.js --limit=25 || true
+    node scripts/retry-unscored.js --limit=25 || true
   fi
 done
 
 # Validate ATS slugs (write slug-health.json for dashboard)
 echo "[run-daily] Validating ATS slugs..."
-node validate-slugs.js --broken-only || true
+node scripts/validate-slugs.js --broken-only || true
 
 # Update .context/ files from DB and git history
 echo "[run-daily] Updating context files..."
-node update-context.js
+node scripts/update-context.js

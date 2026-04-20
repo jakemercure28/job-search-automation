@@ -19,7 +19,7 @@ const {
   WORKABLE_COMPANIES,
   ASHBY_COMPANIES,
   WORKDAY_COMPANIES,
-} = require('./profiles/example/companies.js');
+} = require('../profiles/example/companies.js');
 
 const TIMEOUT_MS = 20000;
 const DELAY_MS   = 120;
@@ -165,7 +165,7 @@ async function runBatch(name, items, checkFn, labelFn, delayMs = DELAY_MS) {
     total: totals,
     broken: allBroken,
   };
-  const jsonPath = require('path').join(__dirname, 'slug-health.json');
+  const jsonPath = require('path').join(__dirname, '../slug-health.json');
   require('fs').writeFileSync(jsonPath, JSON.stringify(summary, null, 2));
   console.log(`\nWrote ${jsonPath}`);
 

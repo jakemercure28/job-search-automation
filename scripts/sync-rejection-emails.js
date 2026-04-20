@@ -1,10 +1,10 @@
 'use strict';
 
-const { loadDashboardEnv } = require('./lib/env');
-loadDashboardEnv(__dirname);
+const { loadDashboardEnv } = require('../lib/env');
+loadDashboardEnv(require('path').join(__dirname, '..'));
 
-const { getDb } = require('./lib/db');
-const { syncRejectionEmails } = require('./lib/rejection-email-sync');
+const { getDb } = require('../lib/db');
+const { syncRejectionEmails } = require('../lib/rejection-email-sync');
 
 async function main() {
   const dryRun = process.argv.includes('--dry-run');

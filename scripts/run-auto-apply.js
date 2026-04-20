@@ -1,10 +1,10 @@
 'use strict';
 
-const { loadDashboardEnv } = require('./lib/env');
-const { getDb } = require('./lib/db');
-const autoApplyConfig = require('./profiles/example/auto-apply-config');
-const { run: runAutoApply } = require('./lib/auto-applier');
-const log = require('./lib/logger')('run-auto-apply');
+const { loadDashboardEnv } = require('../lib/env');
+const { getDb } = require('../lib/db');
+const autoApplyConfig = require('../profiles/example/auto-apply-config');
+const { run: runAutoApply } = require('../lib/auto-applier');
+const log = require('../lib/logger')('run-auto-apply');
 
 function parseDryRun(argv) {
   return argv.includes('--dry-run');
