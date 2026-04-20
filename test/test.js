@@ -226,7 +226,7 @@ describe('job object shape', () => {
 // check-descriptions thresholds
 // ---------------------------------------------------------------------------
 
-const { CRITICAL, WARN, checkDescriptions } = require('../check-descriptions');
+const { CRITICAL, WARN, checkDescriptions } = require('../scripts/check-descriptions');
 
 describe('checkDescriptions thresholds', () => {
   it('CRITICAL is less than WARN', () => {
