@@ -3,7 +3,7 @@
 /**
  * Run JD market research analysis for a profile.
  * Reads jobs from DB, calls Gemini, writes market-research-cache.json.
- * Skips if cache is less than 48 hours old.
+ * Skips if cache is less than 23 hours old.
  *
  * Uses JOB_PROFILE_DIR and JOB_DB_PATH env vars (same as other pipeline scripts).
  */
@@ -12,12 +12,13 @@ const fs = require('fs');
 const path = require('path');
 const Database = require('better-sqlite3');
 const { callGemini } = require('./lib/gemini');
+const { loadCanonicalClusters, saveCanonicalClusters, buildClusterRule } = require('./lib/canonical-clusters');
 
 const PROFILE_DIR = process.env.JOB_PROFILE_DIR || path.join(__dirname, 'profiles', 'example');
 const DB_PATH = process.env.JOB_DB_PATH || path.join(PROFILE_DIR, 'jobs.db');
 const CACHE_PATH = path.join(PROFILE_DIR, 'market-research-cache.json');
 const RESUME_PATH = path.join(PROFILE_DIR, 'resume-ai.md');
-const CACHE_TTL_MS = 48 * 60 * 60 * 1000;
+const CACHE_TTL_MS = 23 * 60 * 60 * 1000;
 
 function loadCache() {
   try {
@@ -32,7 +33,7 @@ async function main() {
   const cache = loadCache();
   if (cache && cache.generatedAt && Date.now() - cache.generatedAt < CACHE_TTL_MS) {
     const ageHours = ((Date.now() - cache.generatedAt) / 3600000).toFixed(1);
-    console.log(`[market-research] Cache is ${ageHours}h old (< 48h), skipping.`);
+    console.log(`[market-research] Cache is ${ageHours}h old (< 23h), skipping.`);
     return;
   }
 
@@ -53,6 +54,13 @@ async function main() {
   }
 
   const resume = fs.existsSync(RESUME_PATH) ? fs.readFileSync(RESUME_PATH, 'utf8') : '';
+  const canonicalClusters = loadCanonicalClusters(PROFILE_DIR);
+
+  if (canonicalClusters) {
+    console.log(`[market-research] Using ${canonicalClusters.length} canonical clusters: ${canonicalClusters.map(c => c.name).join(', ')}`);
+  } else {
+    console.log('[market-research] No canonical clusters found — will establish on this run.');
+  }
 
   const jdBlock = jobs.map((j, i) =>
     `[JD ${i + 1}] ${j.company} — ${j.title} (score:${j.score}, location:${j.location || 'not specified'})\n${(j.description || '').slice(0, 600)}`
@@ -108,7 +116,7 @@ Rules:
 - resume_strengths: skills from the resume that appear in >= 20% of JDs. Max 10 items. Sorted by count desc.
 - trending: 5-8 emerging/newer terms or concepts appearing in JDs that signal where the market is heading in 2026. These should be things like new frameworks, methodologies, or terminology not yet mainstream.
 - location_breakdown: categorize each JD's location field. "remote" = fully remote (includes "Remote", "Work from Home", "Anywhere"). "hybrid" = mix of remote and office days mentioned. "in_person" = on-site only, no remote option. "not_specified" = location field is blank, null, or ambiguous. top_cities: list the top 10 most common specific cities/metros mentioned across all JDs, each with a count of how many JDs mention that city/metro.
-- skill_clusters: Analyze actual co-occurrence patterns across all ${jobs.length} JDs. Group skills into 3-4 archetypes based on which skills appear together most often. Do NOT use pre-defined clusters — derive them from the data. Expected patterns to look for: GPU/Ray/Vector DB skills clustering together (AI infra), GitOps/IDP/Backstage clustering together (Platform), AWS/Terraform/SRE/Observability (Scale Infra), FedRAMP/Zero Trust/Compliance (Security). For each cluster: name = descriptive archetype name, emoji = single emoji, skills = the 6-8 skills with tightest co-occurrence, applicant_match_pct = what % of cluster skills appear on the candidate resume (0-100), anchor_skill = the ONE missing skill that would most increase match (must not be on resume), anchor_note = 1 sentence on why that skill unlocks the cluster (cite co-occurrence frequency), job_count = how many JDs primarily belong to this cluster.
+${buildClusterRule(canonicalClusters, jobs.length)}
 - strategy_score: For each JD, determine if it primarily emphasizes (a) building platforms/IDPs/internal tooling/developer experience (IDP/builder), or (b) managing/operating/reliability/incident response (Ops/operator). idp_pct = % of JDs skewing builder. ops_pct = % skewing operator. These should sum to ~100. pivot_direction: "builder" if idp_pct > 55, "operator" if ops_pct > 55, else "balanced". pivot_note = 1 sentence on what this ratio signals about the 2026 market direction.
 - emerging_high_score: Look specifically at JDs with score >= 9. Find terms, concepts, or technologies that appear in those high-score JDs but are rare or absent in lower-scored JDs. These are signals of what employers most value in 2026. Up to 8 terms, sorted by job_count desc. term = the keyword/concept, job_count = how many score-9+ JDs contain it, note = 1 sentence on why it signals value.
 - All counts and pcts must be real numbers based on actual analysis of the JDs provided.`;
@@ -118,6 +126,11 @@ Rules:
   const raw = await callGemini(prompt, 3, 5000);
   const cleaned = raw.replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/i, '').trim();
   const data = JSON.parse(cleaned);
+
+  if (!canonicalClusters && data.skill_clusters && data.skill_clusters.length > 0) {
+    const saved = saveCanonicalClusters(PROFILE_DIR, data.skill_clusters);
+    console.log(`[market-research] Established canonical clusters: ${saved.map(c => c.name).join(', ')}`);
+  }
 
   const result = { generatedAt: Date.now(), jobCount: jobs.length, data };
   fs.writeFileSync(CACHE_PATH, JSON.stringify(result, null, 2));
