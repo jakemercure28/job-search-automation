@@ -68,8 +68,7 @@ async function run() {
       const key = (j.title || '').trim().toLowerCase() + '|||' + (j.company || '').trim().toLowerCase();
       if (existing.has(key)) { skipped++; continue; }
       existing.add(key); // prevent intra-batch dupes
-      insertJob(db, j);
-      inserted++;
+      if (insertJob(db, j)) inserted++;
     }
     if (skipped > 0) {
       log.info('Skipped pre-existing duplicates', { count: skipped });
