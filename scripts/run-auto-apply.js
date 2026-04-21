@@ -2,18 +2,26 @@
 
 const path = require('path');
 const { loadDashboardEnv } = require('../lib/env');
-const { getDb } = require('../lib/db');
-const profileDir = process.env.JOB_PROFILE_DIR || path.join(__dirname, '..', 'profiles', 'example');
-const autoApplyConfig = require(path.join(profileDir, 'auto-apply-config'));
-const { run: runAutoApply } = require('../lib/auto-applier');
 const log = require('../lib/logger')('run-auto-apply');
 
 function parseDryRun(argv) {
   return argv.includes('--dry-run');
 }
 
+function getProfileDir() {
+  return path.resolve(process.env.JOB_PROFILE_DIR || path.join(__dirname, '..', 'profiles', 'example'));
+}
+
+function loadAutoApplyConfig() {
+  return require(path.join(getProfileDir(), 'auto-apply-config'));
+}
+
 async function run() {
-  loadDashboardEnv();
+  loadDashboardEnv(path.join(__dirname, '..'));
+
+  const { getDb } = require('../lib/db');
+  const { run: runAutoApply } = require('../lib/auto-applier');
+  const autoApplyConfig = loadAutoApplyConfig();
 
   const dryRun = parseDryRun(process.argv.slice(2));
   const db = getDb();
@@ -21,10 +29,9 @@ async function run() {
   const before = db.prepare(`
     SELECT COUNT(*) AS eligible
     FROM jobs
-    WHERE apply_complexity = 'simple'
-      AND status NOT IN ('applied', 'archived')
+    WHERE status = 'pending'
       AND auto_applied_at IS NULL
-      AND auto_apply_status IS NULL
+      AND COALESCE(auto_apply_status, '') != 'success'
   `).get();
 
   log.info('Auto-apply preflight', {
@@ -56,4 +63,4 @@ if (require.main === module) {
   });
 }
 
-module.exports = { run };
+module.exports = { run, parseDryRun, getProfileDir, loadAutoApplyConfig };

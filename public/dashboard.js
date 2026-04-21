@@ -114,6 +114,34 @@ function showToast(msg, color) {
   setTimeout(() => t.classList.remove('show'), 2000);
 }
 
+function ensureJobBadges(card) {
+  const companyLine = card?.querySelector('.job-company');
+  if (!companyLine) return null;
+  let badges = companyLine.querySelector('.job-badges');
+  if (!badges) {
+    badges = document.createElement('span');
+    badges.className = 'job-badges';
+    companyLine.appendChild(badges);
+  }
+  return badges;
+}
+
+function setAutoApplyBadge(card, className, label, title) {
+  const badges = ensureJobBadges(card);
+  if (!badges) return;
+
+  let badge = badges.querySelector('.auto-applied, .auto-failed, .auto-ready');
+  if (!badge) {
+    badge = document.createElement('span');
+    badges.appendChild(badge);
+  }
+
+  badge.className = `complexity-badge ${className}`;
+  badge.textContent = label;
+  if (title) badge.title = title;
+  else badge.removeAttribute('title');
+}
+
 
 function toggleReasoning(id, btn) {
   const panel = document.getElementById('reasoning-' + id);
@@ -210,14 +238,13 @@ async function autoApplyJob(id, btn) {
   if (res.ok) {
     const data = await res.json();
     const card = btn.closest('.job-card');
-    if (card) {
-      const badge = card.querySelector('.auto-ready');
-      if (badge) { badge.className = badge.className.replace('auto-ready', 'auto-applied'); badge.textContent = 'auto'; }
-    }
+    if (card) setAutoApplyBadge(card, 'auto-applied', 'auto', 'Auto-apply succeeded');
     showToast(data.securityCode ? `Applied (code: ${data.securityCode})` : 'Applied', '#16a34a');
     btn.remove();
   } else {
     const data = await res.json().catch(() => ({}));
+    const card = btn.closest('.job-card');
+    if (card) setAutoApplyBadge(card, 'auto-failed', 'autox', data.error || 'Auto-apply failed');
     showToast(`Apply failed: ${data.error || res.statusText}`, '#dc2626');
     btn.disabled = false;
     btn.textContent = 'Apply Now';

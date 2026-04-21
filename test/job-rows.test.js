@@ -30,13 +30,13 @@ describe('renderJobTable', () => {
     const alphaIndex = html.indexOf('>alpha<');
     const zetaIndex = html.indexOf('>zeta<');
     const appliedDateIndex = html.indexOf('>Applied 2026-04-14<');
-    const complexityIndex = html.indexOf('>complex<');
 
     assert.ok(agencyIndex >= 0);
     assert.ok(alphaIndex > agencyIndex);
     assert.ok(zetaIndex > alphaIndex);
     assert.ok(appliedDateIndex > zetaIndex);
-    assert.ok(complexityIndex > appliedDateIndex);
+    assert.doesNotMatch(html, />simple</);
+    assert.doesNotMatch(html, />complex</);
   });
 
   it('preserves search state in pagination and sort links', () => {
@@ -69,19 +69,21 @@ describe('renderJobTable', () => {
     assert.match(html, /onclick="location='\/\?filter=all&sort=date&level=1&q=platform\+aws&minScore=8'"/);
   });
 
-  it('shows pending auto state badges for blocked and eligible jobs', () => {
+  it('shows auto result badges and keeps Apply Now available on supported ATS jobs', () => {
     const html = renderJobTable([
       {
         id: 'job-3',
         title: 'Infrastructure Engineer',
-        company: 'Blocked Ashby Co',
+        company: 'Ashby Co',
         url: 'https://jobs.ashbyhq.com/blocked/12345678-1234-1234-1234-123456789012',
         location: 'Remote',
         description: '',
         status: 'pending',
         stage: null,
         score: 8,
-        apply_complexity: 'simple',
+        apply_complexity: 'complex',
+        auto_apply_status: 'failed',
+        auto_apply_error: 'Required fields still empty before submit',
       },
       {
         id: 'job-4',
@@ -93,13 +95,14 @@ describe('renderJobTable', () => {
         status: 'pending',
         stage: null,
         score: 8,
-        apply_complexity: 'simple',
+        apply_complexity: null,
       },
     ], {}, {}, 'not-applied', 'score', '', null);
 
-    assert.match(html, /Auto-apply blocked: ashby is disabled in unattended mode/);
-    assert.match(html, /Eligible for unattended apply via lever/);
-    assert.match(html, /class="complexity-badge auto-failed"[^>]*>auto&#10007;<\/span>/);
-    assert.match(html, /class="complexity-badge auto-ready"[^>]*>auto<\/span>/);
+    assert.match(html, /Auto-apply failed: Required fields still empty before submit/);
+    assert.match(html, /class="complexity-badge auto-failed"[^>]*>autox<\/span>/);
+    assert.equal((html.match(/Apply Now/g) || []).length, 2);
+    assert.doesNotMatch(html, />simple</);
+    assert.doesNotMatch(html, />complex</);
   });
 });
