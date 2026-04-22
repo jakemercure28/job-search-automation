@@ -4,8 +4,10 @@ const { describe, it } = require('node:test');
 const assert = require('node:assert/strict');
 
 const {
+  answerForGreenhouseQuestion,
   classifyGreenhouseSubmitOutcome,
   greenhouseComboboxSnapshotIsEmpty,
+  resolveGreenhouseQuestionAnswer,
   selectGreenhouseEducationTarget,
 } = require('../lib/ats-appliers/greenhouse');
 
@@ -75,5 +77,22 @@ describe('greenhouse auto-apply helpers', () => {
 
     assert.equal(outcome.outcome, 'confirmation-missing');
     assert.equal(outcome.details.pageTitle, 'Processing');
+  });
+
+  it('treats the Armada-style authorization question as yes', () => {
+    const label = 'Are you currently authorized to work in the United States for any employer without restriction? (“Without restriction” means not tied to a specific employer and not dependent on a pending or future government filing.)';
+    assert.equal(answerForGreenhouseQuestion(label, { usWorkAuthorized: 'Yes', requiresSponsorship: 'No' }), 'Yes');
+  });
+
+  it('prefers prepared answers over fallback heuristics', () => {
+    const label = 'Are you currently authorized to work in the United States for any employer without restriction? (“Without restriction” means not tied to a specific employer and not dependent on a pending or future government filing.)';
+    const answer = resolveGreenhouseQuestionAnswer(label, {
+      usWorkAuthorized: 'No',
+      requiresSponsorship: 'No',
+    }, {
+      question_123: 'Yes',
+    }, 'question_123');
+
+    assert.equal(answer, 'Yes');
   });
 });
