@@ -175,6 +175,7 @@ function buildAssistReview(job, prep) {
     workflow: prep?.workflow || null,
     summary: prep?.summary || null,
     applyUrl: prep?.apply_url || job?.url || null,
+    overridePath: job?.id ? require('../lib/application-overrides').overridePathForJob(job.id) : null,
     resolvedAnswers,
     unresolvedQuestions,
     submitEligible: prep?.status === 'ready',
@@ -202,6 +203,9 @@ function printAssistReview(review) {
     console.log('Manual review required for:');
     for (const label of review.unresolvedQuestions) {
       console.log(`- ${label}`);
+    }
+    if (review.overridePath) {
+      console.log(`override file: ${review.overridePath}`);
     }
   }
 
