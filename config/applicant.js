@@ -35,4 +35,12 @@ module.exports = {
   exportControlsEligible: envYesNo('APPLICANT_EXPORT_CONTROLS_ELIGIBLE', 'Yes'),
   workedAtEmployerBefore: envYesNo('APPLICANT_WORKED_AT_EMPLOYER_BEFORE', 'No'),
   hasConflictOfInterest: envYesNo('APPLICANT_HAS_CONFLICT_OF_INTEREST', 'No'),
+  eeoGender: process.env.APPLICANT_EEO_GENDER || 'decline to self-identify',
+  eeoGenderIdentity: process.env.APPLICANT_EEO_GENDER_IDENTITY || 'decline to answer',
+  eeoPronouns: process.env.APPLICANT_EEO_PRONOUNS || '',
+  eeoOrientation: process.env.APPLICANT_EEO_ORIENTATION || 'decline to answer',
+  eeoHispanic: process.env.APPLICANT_EEO_HISPANIC || 'decline to answer',
+  eeoRace: process.env.APPLICANT_EEO_RACE || 'decline to answer',
+  eeoVeteran: process.env.APPLICANT_EEO_VETERAN || 'decline to answer',
+  eeoDisability: process.env.APPLICANT_EEO_DISABILITY || "don't wish to answer",
 };
