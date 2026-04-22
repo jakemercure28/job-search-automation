@@ -15,6 +15,8 @@ describe('auto-apply receipts', () => {
     assert.equal(classifyAutoApplyFailure('No success confirmation found after submit.'), 'confirmation-missing');
     assert.equal(classifyAutoApplyFailure('Abuse warning detected after submit.'), 'abuse-warning');
     assert.equal(classifyAutoApplyFailure('already submitted an application'), 'duplicate');
+    assert.equal(classifyAutoApplyFailure('Manual review required for unresolved fields: sponsorship'), 'manual-review-needed');
+    assert.equal(classifyAutoApplyFailure('Application form not detected on the greenhouse page'), 'closed-page');
   });
 
   it('summarizes receipt rows for the dashboard cards', () => {
@@ -23,13 +25,15 @@ describe('auto-apply receipts', () => {
       { status: 'success', dry_run: 0 },
       { status: 'failed', dry_run: 0, failure_class: 'validation' },
       { status: 'failed', dry_run: 1, failure_class: 'duplicate' },
+      { status: 'failed', dry_run: 0, failure_class: 'manual-review-needed' },
+      { status: 'failed', dry_run: 0, failure_class: 'closed-page' },
     ]);
 
     assert.deepEqual(summary, {
-      total: 4,
+      total: 6,
       submitted: 1,
       prepared: 1,
-      failed: 2,
+      failed: 4,
       dryRun: 1,
       retryNeeded: 1,
     });
@@ -69,6 +73,8 @@ describe('auto-apply receipts', () => {
 
     assert.match(html, /Auto Applies/);
     assert.match(html, /Retry Needed/);
+    assert.match(html, /Manual Review/);
+    assert.match(html, /Failure Class/);
     assert.match(html, /attemptId=7&type=resume/);
     assert.match(html, /Platform Engineer/);
   });

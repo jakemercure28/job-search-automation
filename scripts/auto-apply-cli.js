@@ -2,6 +2,7 @@
 'use strict';
 
 const path = require('path');
+const readline = require('readline/promises');
 const { spawnSync } = require('child_process');
 const { loadDashboardEnv } = require('../lib/env');
 
@@ -97,9 +98,127 @@ function printOutput(payload, asJson) {
   console.log(JSON.stringify(payload, null, 2));
 }
 
+function printUsage() {
+  console.log(`Usage: node scripts/auto-apply-cli.js <command> [flags]
+
+Commands:
+  plan       List eligible and skipped jobs
+  prepare    Generate prep for one job or a batch
+  assist     Guided flow: select next job, generate prep, review, then optionally submit
+  run        Submit a batch of jobs
+  submit     Submit one specific job
+  retry      Retry retryable failed pending jobs
+  show       Show recent attempt receipts
+
+Common flags:
+  --job=<id>           Target one job
+  --limit=<n>          Limit batch size
+  --platforms=a,b      Restrict to platforms
+  --min-score=<n>      Minimum score
+  --max-score=<n>      Maximum score
+  --score-order=asc    Lowest score first (default)
+  --remote=imac-server Execute the CLI on the iMac repo
+  --json               Emit JSON
+
+Assist flags:
+  --yes                Submit immediately after prep review if ready
+  --dry-run            Submit in dry-run mode
+`);
+}
+
 function loadAutoApplyConfig() {
   const profileDir = path.resolve(process.env.JOB_PROFILE_DIR || path.join(__dirname, '..', 'profiles', 'example'));
   return require(path.join(profileDir, 'auto-apply-config'));
+}
+
+function summarizePlan(rows) {
+  const summary = { total: rows.length, eligible: 0, skipped: 0, skipReasons: {} };
+  for (const row of rows) {
+    if (row.canSubmit && !row.skipReason) {
+      summary.eligible += 1;
+      continue;
+    }
+    summary.skipped += 1;
+    const key = row.skipReason || 'unknown';
+    summary.skipReasons[key] = (summary.skipReasons[key] || 0) + 1;
+  }
+  return summary;
+}
+
+function formatAnswerValue(value) {
+  if (Array.isArray(value)) return value.join(', ');
+  if (value == null || value === '') return '—';
+  return String(value);
+}
+
+function buildAssistReview(job, prep) {
+  const questions = Array.isArray(prep?.questions) ? prep.questions : [];
+  const answers = prep?.answers || {};
+  const resolvedAnswers = questions
+    .filter((field) => Object.prototype.hasOwnProperty.call(answers, field.name))
+    .map((field) => ({
+      label: field.label,
+      value: formatAnswerValue(answers[field.name]),
+    }));
+  const unresolvedQuestions = questions
+    .filter((field) => !Object.prototype.hasOwnProperty.call(answers, field.name))
+    .map((field) => field.label);
+
+  return {
+    jobId: job?.id || null,
+    company: job?.company || null,
+    title: job?.title || null,
+    score: job?.score ?? null,
+    platform: job?.platform || null,
+    applyComplexity: job?.apply_complexity || null,
+    prepStatus: prep?.status || null,
+    workflow: prep?.workflow || null,
+    summary: prep?.summary || null,
+    applyUrl: prep?.apply_url || job?.url || null,
+    resolvedAnswers,
+    unresolvedQuestions,
+    submitEligible: prep?.status === 'ready',
+  };
+}
+
+function printAssistReview(review) {
+  console.log('');
+  console.log(`${review.company} | ${review.title}`);
+  console.log(`job: ${review.jobId}`);
+  console.log(`score: ${review.score ?? '—'} | platform: ${review.platform || '—'} | complexity: ${review.applyComplexity || '—'}`);
+  console.log(`prep: ${review.prepStatus || '—'} | workflow: ${review.workflow || '—'}`);
+  console.log(`summary: ${review.summary || '—'}`);
+
+  if (review.resolvedAnswers.length) {
+    console.log('');
+    console.log('Resolved answers:');
+    for (const answer of review.resolvedAnswers) {
+      console.log(`- ${answer.label}: ${answer.value}`);
+    }
+  }
+
+  if (review.unresolvedQuestions.length) {
+    console.log('');
+    console.log('Manual review required for:');
+    for (const label of review.unresolvedQuestions) {
+      console.log(`- ${label}`);
+    }
+  }
+
+  console.log('');
+}
+
+async function confirmSubmit() {
+  const rl = readline.createInterface({
+    input: process.stdin,
+    output: process.stdout,
+  });
+  try {
+    const answer = await rl.question('Submit this application now? [y/N] ');
+    return /^y(es)?$/i.test(String(answer || '').trim());
+  } finally {
+    rl.close();
+  }
 }
 
 async function main() {
@@ -110,6 +229,7 @@ async function main() {
 
   const { getDb } = require('../lib/db');
   const { applyOne, planAutoApply, prepareOne, run } = require('../lib/auto-applier');
+  const { getApplicationPrep } = require('../lib/application-prep');
   const { listAutoApplyAttempts, summarizeAutoApplyAttempts } = require('../lib/auto-apply-receipts');
 
   const { flags, positionals } = parsed;
@@ -124,12 +244,19 @@ async function main() {
   const days = parseInteger(flags.days, null);
   const platforms = parseCsv(flags.platforms || flags.platform);
   const scoreOrder = String(flags['score-order'] || (flags['high-score-first'] ? 'desc' : 'asc'));
+  const yes = Boolean(flags.yes);
 
   const db = getDb();
   const config = loadAutoApplyConfig();
 
   let payload;
   switch (command) {
+    case 'help':
+    case '--help':
+    case '-h':
+      printUsage();
+      return;
+
     case 'plan':
       payload = await planAutoApply(db, config, {
         jobId,
@@ -141,6 +268,8 @@ async function main() {
         scoreOrder,
         refreshReadiness: Boolean(flags.refresh),
       });
+      if (asJson) payload = { summary: summarizePlan(payload), rows: payload };
+      else console.log(JSON.stringify(summarizePlan(payload), null, 2));
       break;
 
     case 'prepare':
@@ -158,6 +287,80 @@ async function main() {
         });
       }
       break;
+
+    case 'assist': {
+      let targetJobId = jobId;
+      if (!targetJobId) {
+        const planRows = await planAutoApply(db, config, {
+          retryFailed: Boolean(flags['retry-failed']),
+          minScore,
+          maxScore,
+          platforms,
+          includeSkipped: false,
+          scoreOrder,
+          refreshReadiness: true,
+        });
+        const nextCandidate = planRows.find((row) => row.canSubmit && !row.skipReason);
+        if (!nextCandidate) throw new Error('No eligible pending jobs found for guided auto-apply');
+        targetJobId = nextCandidate.jobId;
+      }
+
+      const prepResult = await prepareOne(db, config, targetJobId, {
+        actor,
+        dryRun,
+        force: true,
+      });
+      const job = db.prepare('SELECT * FROM jobs WHERE id = ?').get(targetJobId);
+      const prep = getApplicationPrep(db, targetJobId);
+      const review = buildAssistReview(job, prep);
+
+      if (asJson) {
+        payload = {
+          stage: review.submitEligible ? 'ready_for_review' : 'manual_review_required',
+          review,
+          prepResult,
+        };
+        if (!review.submitEligible || !yes) break;
+
+        const submitResult = await applyOne(db, config, targetJobId, dryRun, { actor });
+        payload = {
+          stage: submitResult.success ? 'submitted' : 'submit_failed',
+          review,
+          prepResult,
+          submitResult,
+        };
+        break;
+      }
+
+      printAssistReview(review);
+      if (!review.submitEligible) {
+        payload = {
+          stage: 'manual_review_required',
+          review,
+          prepResult,
+        };
+        break;
+      }
+
+      const shouldSubmit = yes ? true : await confirmSubmit();
+      if (!shouldSubmit) {
+        payload = {
+          stage: 'ready_for_review',
+          review,
+          prepResult,
+        };
+        break;
+      }
+
+      const submitResult = await applyOne(db, config, targetJobId, dryRun, { actor });
+      payload = {
+        stage: submitResult.success ? 'submitted' : 'submit_failed',
+        review,
+        prepResult,
+        submitResult,
+      };
+      break;
+    }
 
     case 'run':
       payload = await run(db, config, dryRun, {
@@ -203,6 +406,7 @@ async function main() {
         maxScore,
         days,
         actor: flags.actor ? String(flags.actor) : null,
+        failureClass: flags['failure-class'] ? String(flags['failure-class']) : null,
         jobId,
       });
       payload = {
