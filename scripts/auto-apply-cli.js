@@ -49,7 +49,7 @@ function maybeRunRemote(argv, flags) {
   const remoteHost = flags.remote ? String(flags.remote) : '';
   if (!remoteHost || flags['remote-exec']) return false;
 
-  const remoteRepo = String(flags['remote-repo'] || '~/job-search-automation');
+  const remoteRepo = String(flags['remote-repo'] || '/Users/jake/job-search-automation');
   const remoteNode = String(flags['remote-node'] || '/opt/homebrew/opt/node@22/bin/node');
   const forwardedArgs = argv
     .filter((arg) => !arg.startsWith('--remote=') && !arg.startsWith('--remote-repo=') && !arg.startsWith('--remote-node='))
