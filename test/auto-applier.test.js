@@ -86,4 +86,29 @@ describe('auto-applier quota counting', () => {
 
     assert.deepEqual(rows.map((row) => row.jobId), ['job-validation']);
   });
+
+  it('does not skip supported jobs just because they are marked complex', async () => {
+    const db = createDb();
+    const insertJob = db.prepare(`
+      INSERT INTO jobs (id, company, title, url, platform, score, status, auto_apply_status, apply_complexity, created_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `);
+
+    insertJob.run('job-greenhouse', 'Acme', 'Platform Engineer', 'https://boards.greenhouse.io/acme/jobs/1', 'greenhouse', 4, 'pending', null, 'complex', '2026-04-21T10:00:00Z');
+    insertJob.run('job-lever', 'Bravo', 'DevOps Engineer', 'https://jobs.lever.co/bravo/12345678-1234-1234-1234-123456789012', 'lever', 5, 'pending', null, 'complex', '2026-04-21T11:00:00Z');
+
+    const rows = await planAutoApply(db, {
+      applicant: {},
+      blocklist: [],
+      platformBlocklist: ['ashby'],
+    }, {
+      scoreOrder: 'asc',
+    });
+
+    assert.equal(rows.length, 2);
+    assert.equal(rows[0].skipReason, null);
+    assert.equal(rows[0].canSubmit, true);
+    assert.equal(rows[1].skipReason, null);
+    assert.equal(rows[1].canSubmit, true);
+  });
 });
