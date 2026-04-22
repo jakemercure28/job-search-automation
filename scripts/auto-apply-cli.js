@@ -2,6 +2,7 @@
 'use strict';
 
 const path = require('path');
+const { spawnSync } = require('child_process');
 const { loadDashboardEnv } = require('../lib/env');
 
 function parseArgs(argv) {
@@ -38,6 +39,25 @@ function parseCsv(value) {
   if (!value) return null;
   const items = String(value).split(',').map((item) => item.trim()).filter(Boolean);
   return items.length ? items : null;
+}
+
+function shellQuote(value) {
+  return `'${String(value).replace(/'/g, `'\\''`)}'`;
+}
+
+function maybeRunRemote(argv, flags) {
+  const remoteHost = flags.remote ? String(flags.remote) : '';
+  if (!remoteHost || flags['remote-exec']) return false;
+
+  const remoteRepo = String(flags['remote-repo'] || '~/job-search-automation');
+  const remoteNode = String(flags['remote-node'] || '/opt/homebrew/opt/node@22/bin/node');
+  const forwardedArgs = argv
+    .filter((arg) => !arg.startsWith('--remote=') && !arg.startsWith('--remote-repo=') && !arg.startsWith('--remote-node='))
+    .concat('--remote-exec');
+  const remoteCmd = `cd ${shellQuote(remoteRepo)} && ${shellQuote(remoteNode)} scripts/auto-apply-cli.js ${forwardedArgs.map(shellQuote).join(' ')}`;
+
+  const result = spawnSync('ssh', [remoteHost, remoteCmd], { stdio: 'inherit' });
+  process.exit(result.status || 0);
 }
 
 function formatTable(rows) {
@@ -83,13 +103,16 @@ function loadAutoApplyConfig() {
 }
 
 async function main() {
+  const parsed = parseArgs(process.argv.slice(2));
+  maybeRunRemote(process.argv.slice(2), parsed.flags);
+
   loadDashboardEnv(path.join(__dirname, '..'));
 
   const { getDb } = require('../lib/db');
   const { applyOne, planAutoApply, prepareOne, run } = require('../lib/auto-applier');
   const { listAutoApplyAttempts, summarizeAutoApplyAttempts } = require('../lib/auto-apply-receipts');
 
-  const { flags, positionals } = parseArgs(process.argv.slice(2));
+  const { flags, positionals } = parsed;
   const command = positionals[0] || 'run';
   const dryRun = Boolean(flags['dry-run']);
   const asJson = Boolean(flags.json);
@@ -100,7 +123,7 @@ async function main() {
   const maxScore = parseInteger(flags['max-score'], null);
   const days = parseInteger(flags.days, null);
   const platforms = parseCsv(flags.platforms || flags.platform);
-  const scoreOrder = String(flags['score-order'] || (flags['low-score-first'] ? 'asc' : 'desc'));
+  const scoreOrder = String(flags['score-order'] || (flags['high-score-first'] ? 'desc' : 'asc'));
 
   const db = getDb();
   const config = loadAutoApplyConfig();
