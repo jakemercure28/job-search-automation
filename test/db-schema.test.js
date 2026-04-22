@@ -216,6 +216,7 @@ describe('db schema helpers', () => {
     assert.ok(autoApplyColumns.has('failure_class'));
     assert.ok(autoApplyColumns.has('pre_image_path'));
     assert.ok(autoApplyColumns.has('resume_path'));
+    assert.ok(autoApplyColumns.has('details_json'));
     assert.ok(autoApplyRunColumns.has('started_at'));
     assert.ok(autoApplyRunColumns.has('summary_json'));
     assert.ok(applicationPrepColumns.has('workflow'));

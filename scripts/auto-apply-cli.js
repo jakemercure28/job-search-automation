@@ -117,6 +117,8 @@ Common flags:
   --min-score=<n>      Minimum score
   --max-score=<n>      Maximum score
   --score-order=asc    Lowest score first (default)
+  --require-ready-prep Only include jobs with an existing ready prep
+  --stop-on-validation-streak=<n>  Halt after n consecutive validation failures on one platform
   --remote=imac-server Execute the CLI on the iMac repo
   --json               Emit JSON
 
@@ -249,6 +251,8 @@ async function main() {
   const platforms = parseCsv(flags.platforms || flags.platform);
   const scoreOrder = String(flags['score-order'] || (flags['high-score-first'] ? 'desc' : 'asc'));
   const yes = Boolean(flags.yes);
+  const requireReadyPrep = Boolean(flags['require-ready-prep']);
+  const stopOnValidationStreak = parseInteger(flags['stop-on-validation-streak'], 0);
 
   const db = getDb();
   const config = loadAutoApplyConfig();
@@ -271,6 +275,7 @@ async function main() {
         includeSkipped: true,
         scoreOrder,
         refreshReadiness: Boolean(flags.refresh),
+        requireReadyPrep,
       });
       if (asJson) payload = { summary: summarizePlan(payload), rows: payload };
       else console.log(JSON.stringify(summarizePlan(payload), null, 2));
@@ -288,6 +293,7 @@ async function main() {
           maxScore,
           platforms,
           scoreOrder,
+          requireReadyPrep,
         });
       }
       break;
@@ -303,6 +309,7 @@ async function main() {
           includeSkipped: false,
           scoreOrder,
           refreshReadiness: true,
+          requireReadyPrep,
         });
         const nextCandidate = planRows.find((row) => row.canSubmit && !row.skipReason);
         if (!nextCandidate) throw new Error('No eligible pending jobs found for guided auto-apply');
@@ -376,6 +383,8 @@ async function main() {
         platforms,
         retryFailed: Boolean(flags['retry-failed']),
         scoreOrder,
+        requireReadyPrep,
+        stopOnValidationStreak,
       });
       break;
 
@@ -397,6 +406,8 @@ async function main() {
         maxScore,
         platforms,
         scoreOrder,
+        requireReadyPrep,
+        stopOnValidationStreak,
       });
       break;
 
@@ -413,21 +424,26 @@ async function main() {
         failureClass: flags['failure-class'] ? String(flags['failure-class']) : null,
         jobId,
       });
+      const mappedRows = rows.map((row) => ({
+        attempt_id: row.attempt_id,
+        when: row.attempted_at,
+        company: row.company,
+        title: row.title,
+        score: row.score ?? '',
+        platform: row.platform || '',
+        status: row.status,
+        mode: row.dry_run ? 'dry-run' : row.mode,
+        actor: row.actor || '',
+        failure_class: row.failure_class || '',
+        resume: row.resume_filename || '',
+        ...(asJson ? {
+          error: row.display_error || row.error || '',
+          details: row.details || null,
+        } : {}),
+      }));
       payload = {
         summary: summarizeAutoApplyAttempts(rows),
-        rows: rows.map((row) => ({
-          attempt_id: row.attempt_id,
-          when: row.attempted_at,
-          company: row.company,
-          title: row.title,
-          score: row.score ?? '',
-          platform: row.platform || '',
-          status: row.status,
-          mode: row.dry_run ? 'dry-run' : row.mode,
-          actor: row.actor || '',
-          failure_class: row.failure_class || '',
-          resume: row.resume_filename || '',
-        })),
+        rows: mappedRows,
       };
       break;
     }

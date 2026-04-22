@@ -4,7 +4,7 @@ const { describe, it } = require('node:test');
 const assert = require('node:assert/strict');
 const Database = require('better-sqlite3');
 
-const { countSuccessfulApplicationsToday, isBlockedPlatform, planAutoApply } = require('../lib/auto-applier');
+const { countSuccessfulApplicationsToday, isBlockedPlatform, planAutoApply, updateValidationFailureStreak } = require('../lib/auto-applier');
 
 function createDb() {
   const db = new Database(':memory:');
@@ -29,7 +29,12 @@ function createDb() {
       attempted_at TEXT,
       status TEXT,
       dry_run INTEGER DEFAULT 0,
-      failure_class TEXT
+      failure_class TEXT,
+      platform TEXT
+    );
+    CREATE TABLE application_preps (
+      job_id TEXT PRIMARY KEY,
+      status TEXT
     );
   `);
   return db;
@@ -110,5 +115,67 @@ describe('auto-applier quota counting', () => {
     assert.equal(rows[0].canSubmit, true);
     assert.equal(rows[1].skipReason, null);
     assert.equal(rows[1].canSubmit, true);
+  });
+
+  it('can require an existing ready prep before selecting jobs', async () => {
+    const db = createDb();
+    const insertJob = db.prepare(`
+      INSERT INTO jobs (id, company, title, url, platform, score, status, auto_apply_status, apply_complexity, created_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `);
+    const insertPrep = db.prepare(`
+      INSERT INTO application_preps (job_id, status)
+      VALUES (?, ?)
+    `);
+
+    insertJob.run('job-ready', 'Acme', 'Platform Engineer', 'https://boards.greenhouse.io/acme/jobs/1', 'greenhouse', 4, 'pending', null, 'simple', '2026-04-21T10:00:00Z');
+    insertJob.run('job-manual', 'Bravo', 'DevOps Engineer', 'https://jobs.lever.co/bravo/12345678-1234-1234-1234-123456789012', 'lever', 5, 'pending', null, 'simple', '2026-04-21T11:00:00Z');
+    insertPrep.run('job-ready', 'ready');
+    insertPrep.run('job-manual', 'unsupported');
+
+    const rows = await planAutoApply(db, {
+      applicant: {},
+      blocklist: [],
+      platformBlocklist: ['ashby'],
+    }, {
+      scoreOrder: 'asc',
+      requireReadyPrep: true,
+    });
+
+    assert.deepEqual(rows.map((row) => row.jobId), ['job-ready']);
+    assert.equal(rows[0].prepStatus, 'ready');
+  });
+});
+
+describe('validation failure streak helper', () => {
+  it('halts after two consecutive validation failures on the same platform', () => {
+    let state = updateValidationFailureStreak({}, {
+      failure_class: 'validation',
+      platform: 'greenhouse',
+    }, 2);
+    assert.equal(state.shouldHalt, false);
+    assert.equal(state.count, 1);
+
+    state = updateValidationFailureStreak(state, {
+      failure_class: 'validation',
+      platform: 'greenhouse',
+    }, 2);
+    assert.equal(state.shouldHalt, true);
+    assert.equal(state.count, 2);
+    assert.equal(state.platform, 'greenhouse');
+  });
+
+  it('resets when the next failure is not a validation failure', () => {
+    const state = updateValidationFailureStreak({
+      platform: 'greenhouse',
+      count: 1,
+    }, {
+      failure_class: 'manual-review-needed',
+      platform: 'greenhouse',
+    }, 2);
+
+    assert.equal(state.shouldHalt, false);
+    assert.equal(state.count, 0);
+    assert.equal(state.platform, null);
   });
 });
