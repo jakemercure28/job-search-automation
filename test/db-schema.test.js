@@ -201,6 +201,7 @@ describe('db schema helpers', () => {
     const schemaVersion = db.prepare("SELECT value FROM metadata WHERE key = 'schema_version'").get();
     const jobColumns = getColumnNames(db, 'jobs');
     const autoApplyColumns = getColumnNames(db, 'auto_apply_log');
+    const autoApplyRunColumns = getColumnNames(db, 'auto_apply_runs');
     const applicationPrepColumns = getColumnNames(db, 'application_preps');
     const rejectionEmailColumns = getColumnNames(db, 'rejection_email_log');
 
@@ -212,6 +213,11 @@ describe('db schema helpers', () => {
     assert.ok(jobColumns.has('score_error'));
     assert.ok(autoApplyColumns.has('resume_filename'));
     assert.ok(autoApplyColumns.has('dry_run'));
+    assert.ok(autoApplyColumns.has('failure_class'));
+    assert.ok(autoApplyColumns.has('pre_image_path'));
+    assert.ok(autoApplyColumns.has('resume_path'));
+    assert.ok(autoApplyRunColumns.has('started_at'));
+    assert.ok(autoApplyRunColumns.has('summary_json'));
     assert.ok(applicationPrepColumns.has('workflow'));
     assert.ok(applicationPrepColumns.has('answers_json'));
     assert.ok(applicationPrepColumns.has('voice_checks_json'));

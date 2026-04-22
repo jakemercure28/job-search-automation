@@ -333,9 +333,55 @@ document.getElementById('company-notes-modal').addEventListener('click', e => {
   if (e.target === document.getElementById('company-notes-modal')) closeCompanyNotes();
 });
 
+// ---------------------------------------------------------------------------
+// Auto-apply receipt modal
+// ---------------------------------------------------------------------------
+
+function closeAutoApplyAttempt() {
+  document.getElementById('auto-apply-attempt-modal').classList.remove('open');
+}
+
+async function openAutoApplyAttempt(id) {
+  const modal = document.getElementById('auto-apply-attempt-modal');
+  const body = document.getElementById('auto-apply-attempt-body');
+  document.getElementById('auto-apply-attempt-title').textContent = 'Auto-Apply Receipt #' + id;
+  document.getElementById('auto-apply-attempt-sub').textContent = 'Loading…';
+  body.textContent = 'Loading…';
+  modal.classList.add('open');
+
+  try {
+    const data = await fetch('/auto-apply-attempt?id=' + encodeURIComponent(id)).then(r => r.json());
+    const lines = [
+      data.company + ' - ' + data.title,
+      'Attempted: ' + (data.attempted_at || '—'),
+      'Status: ' + (data.status || '—'),
+      'Platform: ' + (data.platform || '—'),
+      'Mode: ' + (data.dry_run ? 'dry-run' : (data.mode || 'submit')),
+      'Actor: ' + (data.actor || 'manual'),
+      'Failure Class: ' + (data.failure_class || '—'),
+      'PDF: ' + (data.resume_filename || '—'),
+      'Security Code: ' + (data.security_code || '—'),
+      data.pre_image_path ? 'Pre Screenshot: ' + data.pre_image_path : null,
+      data.post_image_path ? 'Post Screenshot: ' + data.post_image_path : null,
+      '',
+      data.error ? 'Error:\n' + data.error : 'No error recorded.',
+    ].filter(Boolean);
+    document.getElementById('auto-apply-attempt-sub').textContent = (data.company || '') + ' · ' + (data.status || '');
+    body.textContent = lines.join('\n');
+  } catch (error) {
+    document.getElementById('auto-apply-attempt-sub').textContent = 'Failed to load';
+    body.textContent = 'Failed to load auto-apply receipt.';
+  }
+}
+
+document.getElementById('auto-apply-attempt-modal').addEventListener('click', e => {
+  if (e.target === document.getElementById('auto-apply-attempt-modal')) closeAutoApplyAttempt();
+});
+
 document.addEventListener('keydown', e => {
   if (e.key === 'Escape') {
     closeCompanyNotes();
+    closeAutoApplyAttempt();
     closeApplyImage();
     document.getElementById('jd-modal').style.display = 'none';
   }
