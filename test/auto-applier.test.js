@@ -4,7 +4,7 @@ const { describe, it } = require('node:test');
 const assert = require('node:assert/strict');
 const Database = require('better-sqlite3');
 
-const { countSuccessfulApplicationsToday, isBlockedPlatform, planAutoApply, updateValidationFailureStreak } = require('../lib/auto-applier');
+const { buildApplicantForJob, countSuccessfulApplicationsToday, isBlockedPlatform, planAutoApply, updateValidationFailureStreak } = require('../lib/auto-applier');
 
 function createDb() {
   const db = new Database(':memory:');
@@ -177,5 +177,19 @@ describe('validation failure streak helper', () => {
     assert.equal(state.shouldHalt, false);
     assert.equal(state.count, 0);
     assert.equal(state.platform, null);
+  });
+});
+
+describe('applicant profile merge', () => {
+  it('preserves default applicant fields when profile config overrides only a subset', () => {
+    const result = buildApplicantForJob({ id: 'greenhouse-1', title: 'Platform Engineer' }, {
+      firstName: 'Jake',
+      currentCompany: 'Future Card',
+    });
+
+    assert.equal(result.firstName, 'Jake');
+    assert.equal(result.currentCompany, 'Future Card');
+    assert.equal(result.school, process.env.APPLICANT_SCHOOL || '');
+    assert.equal(result.fieldOfStudy, process.env.APPLICANT_FIELD_OF_STUDY || '');
   });
 });
