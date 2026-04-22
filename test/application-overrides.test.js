@@ -34,7 +34,7 @@ describe('application override helpers', () => {
       assert.equal(firstPath, overridePathForJob(job.id));
 
       const firstPayload = JSON.parse(fs.readFileSync(firstPath, 'utf8'));
-      assert.equal(firstPayload.answers.question_one, '');
+      assert.equal(firstPayload.answers.question_one, null);
 
       firstPayload.answers.question_one = 'Manual answer';
       fs.writeFileSync(firstPath, `${JSON.stringify(firstPayload, null, 2)}\n`);
@@ -46,7 +46,7 @@ describe('application override helpers', () => {
 
       const secondPayload = JSON.parse(fs.readFileSync(firstPath, 'utf8'));
       assert.equal(secondPayload.answers.question_one, 'Manual answer');
-      assert.equal(secondPayload.answers.question_two, '');
+      assert.equal(secondPayload.answers.question_two, null);
     } finally {
       if (previousProfileDir == null) delete process.env.JOB_PROFILE_DIR;
       else process.env.JOB_PROFILE_DIR = previousProfileDir;
