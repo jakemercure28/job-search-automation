@@ -38,7 +38,7 @@ Then edit both to reflect you. `.context/` and profiles other than `example/` ar
 
 ## Slash commands
 
-The following commands are available in both Claude Code (`.claude/commands/`) and Codex (`.ai/skills/shared/`, linked via `scripts/link-codex-skills.sh`):
+The following commands are available in both Claude Code (`.claude/commands/`) and Codex (`~/.codex/skills/`):
 
 | Command | When to use |
 |---|---|
