@@ -1,6 +1,6 @@
 ---
 name: apply
-description: Reviewed local CLI workflow for direct job-application requests. Use when asked to apply to a specific job, submit an application, or apply to the next eligible pending job. Prepare answers in the CLI, surface unresolved or low-confidence fields, require explicit approval before submit, preserve receipts and screenshots, and keep execution on the local MacBook checkout.
+description: Reviewed local workflow for direct job-application requests. Use when asked to apply to a specific job or submit an application. Extract custom questions, draft answers, require explicit approval before submit, preserve screenshots and receipt logs, and keep execution on the local MacBook checkout.
 ---
 
 # Apply
@@ -14,12 +14,13 @@ Use this skill as the primary entry point for direct apply and submit requests i
    - `{JOB_PROFILE_DIR}/context.md`
    - `{JOB_PROFILE_DIR}/career-detail.md`
    - `{JOB_PROFILE_DIR}/resume.md`
-3. Use `node scripts/auto-apply-cli.js apply --job=<job-id>` when the user names a job.
-4. Use `node scripts/auto-apply-cli.js apply` when the user wants the next eligible pending supported job.
-5. Use `node scripts/auto-apply-cli.js prepare --job=<job-id>` when you need the review payload without submitting.
-6. Review resolved answers, unresolved fields, and low-confidence fields before any submit step.
-7. Submit only after explicit approval from the user. Use `--yes` only after that approval is already established.
-8. Keep execution local. Do not use SSH, remote execution, or the dashboard as the normal apply path.
+3. Resolve the job ID before doing anything destructive. If the user did not supply one, find the target job from the active SQLite DB first.
+4. Run `node scripts/apply-extract.js <job-id>` to extract the custom application questions from the live apply page.
+5. Draft answers for the extracted fields in the applicant's voice. Save the final reviewed answers as a JSON object at `/tmp/apply-answers-<job-id>.json`, keyed by field name.
+6. Review the extracted fields and final answers with the user before any submit step.
+7. Submit only after explicit approval from the user with `node scripts/apply-submit.js <job-id> /tmp/apply-answers-<job-id>.json`.
+8. Use `APPLY_HEADED=1` when a visible browser is needed for review or debugging.
+9. Keep execution local. Do not use SSH or remote execution as the normal apply path.
 
 ## Answer Rules
 
@@ -32,7 +33,8 @@ Use this skill as the primary entry point for direct apply and submit requests i
 ## When To Stop
 
 - Do not submit unattended by default.
-- If prep is not ready, return the unresolved fields and the override path instead of guessing.
+- If extraction fails or the apply page is unsupported, stop and show the page issue instead of guessing.
+- If prep is not ready, return the unresolved fields and the answers JSON path instead of guessing.
 - If a question is ambiguous or unsupported, stop at review and ask for approval or missing inputs.
 
 ## Receipts
@@ -40,16 +42,14 @@ Use this skill as the primary entry point for direct apply and submit requests i
 Capture and preserve:
 
 - apply URL
-- resolved answers shown in review
-- unresolved fields
-- low-confidence fields
+- extracted custom fields
+- reviewed answers JSON
 - screenshots
-- email-confirmation result
-- page title, page URL, and short text snippet when verification fails
+- submit result
+- receipt log entry or error text when submission fails
 
 ## Commands
 
-- `node scripts/auto-apply-cli.js prepare --job=<job-id>`
-- `node scripts/auto-apply-cli.js apply --job=<job-id>`
-- `node scripts/auto-apply-cli.js apply`
-- `node scripts/auto-apply-cli.js show`
+- `node scripts/apply-extract.js <job-id>`
+- `node scripts/apply-submit.js <job-id> /tmp/apply-answers-<job-id>.json`
+- `node scripts/show-apply-log.js`

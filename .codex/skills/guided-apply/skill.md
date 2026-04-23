@@ -5,7 +5,7 @@ allowed-tools: Bash, Read
 
 ## Scope
 
-Use this skill for application prep, CLI review, approved submission, receipts, and verification artifacts on the local MacBook checkout.
+Use this skill for application prep, answer review, approved submission, receipts, and verification artifacts on the local MacBook checkout.
 
 ## Default workflow
 
@@ -14,15 +14,16 @@ Use this skill for application prep, CLI review, approved submission, receipts, 
    - `{JOB_PROFILE_DIR}/context.md`
    - `{JOB_PROFILE_DIR}/career-detail.md`
    - `{JOB_PROFILE_DIR}/resume.md`
-3. Use `node scripts/auto-apply-cli.js apply --job=<job-id>` for a single job.
-4. Use `node scripts/auto-apply-cli.js apply` to pick the next eligible pending job.
-5. Treat reviewed CLI apply as the main path:
-   - generate prep and stored answers
-   - print resolved and unresolved fields in the CLI
+3. Use `node scripts/apply-extract.js <job-id>` to extract the custom application questions for one job.
+4. Draft answers in the applicant's voice and save them to `/tmp/apply-answers-<job-id>.json`.
+5. Treat reviewed local apply as the main path:
+   - generate extracted questions first
+   - review the final answers JSON with the user
    - ask for explicit approval before submit
    - submit only after approval
-   - record receipts, screenshots, and email-confirmation evidence
-6. Do not use SSH or remote execution as part of the normal flow.
+   - record screenshots and receipt-log evidence
+6. Use `APPLY_HEADED=1` when a visible browser is needed.
+7. Do not use SSH or remote execution as part of the normal flow.
 
 ## Answer rules
 
@@ -35,26 +36,25 @@ Use this skill for application prep, CLI review, approved submission, receipts, 
 ## When to submit
 
 - Do not use unattended submission as the default path.
-- If prep is not ready, return the unresolved fields and the override path instead of guessing.
+- If prep is not ready, return the extracted fields and the answers JSON path instead of guessing.
 
 ## Dashboard behavior
 
 - The dashboard is for browsing jobs and updating status, not for launching apply flows.
-- Apply review and approval happen in the CLI.
+- Apply review happens in the extracted question set and the answers JSON file.
 
 ## Receipts
 
 Capture and preserve:
 - apply URL
-- resolved answers shown to the operator
-- unresolved fields
-- low-confidence fields
+- extracted custom fields
+- reviewed answers JSON
 - screenshots
-- email confirmation result
-- page title, page URL, and short text snippet when detection fails
+- receipt log result
+- error text when submission fails
 
 ## Commands
 
-- `node scripts/auto-apply-cli.js prepare --job=<job-id>`
-- `node scripts/auto-apply-cli.js apply --job=<job-id>`
-- `node scripts/auto-apply-cli.js show`
+- `node scripts/apply-extract.js <job-id>`
+- `node scripts/apply-submit.js <job-id> /tmp/apply-answers-<job-id>.json`
+- `node scripts/show-apply-log.js`

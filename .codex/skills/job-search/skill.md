@@ -18,7 +18,7 @@ Do not rely on SSH, an iMac, cron, or an always-on dashboard as the normal path.
 - Refresh jobs locally: `npm run refresh`
 - Open the dashboard when needed: `npm start`
 - Review the queue from SQLite with local commands
-- Hand off actual submissions to the reviewed apply flow: `node scripts/auto-apply-cli.js apply --job=<job-id>`
+- Hand off actual submissions to the reviewed apply flow: `node scripts/apply-extract.js <job-id>` then `node scripts/apply-submit.js <job-id> /tmp/apply-answers-<job-id>.json`
 
 ## Review flow
 
