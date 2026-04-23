@@ -1,0 +1,7 @@
+interface:
+  display_name: "Apply"
+  short_description: "Direct reviewed job applications"
+  default_prompt: "Use $apply to review a job application, surface unresolved fields, and submit only after explicit approval."
+
+policy:
+  allow_implicit_invocation: true

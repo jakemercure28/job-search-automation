@@ -1,0 +1,7 @@
+interface:
+  display_name: "Guided Apply"
+  short_description: "Prepare and review applications"
+  default_prompt: "Use $guided-apply to prepare a job application, fill what is deterministic, stop before submit, and surface any unresolved fields."
+
+policy:
+  allow_implicit_invocation: true
