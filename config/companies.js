@@ -5,7 +5,9 @@
 const path = require('path');
 const fs = require('fs');
 
-const profileDir = process.env.JOB_PROFILE_DIR || path.join(__dirname, '..', 'profiles', 'example');
+const profileDir = process.env.JOB_PROFILE_DIR
+  ? path.resolve(process.env.JOB_PROFILE_DIR)
+  : path.join(__dirname, '..', 'profiles', 'example');
 const profileCompanies = path.join(profileDir, 'companies.js');
 
 if (fs.existsSync(profileCompanies)) {
