@@ -28,7 +28,7 @@ describe('auto-apply log summary', () => {
     );
 
     const html = renderAutoApplyLog({ autoApplyLog: rows });
-    assert.ok(html.includes('>4</span> jobs &mdash; <span style="color:#93c5fd;font-family:var(--font-mono)">1</span> prepared, <span style="color:#4ade80;font-family:var(--font-mono)">2</span> submitted, <span style="color:#f87171;font-family:var(--font-mono)">1</span> failed'));
+    assert.ok(html.includes('>4</span> jobs &mdash; <span style="color:#4ade80;font-family:var(--font-mono)">2</span> succeeded, <span style="color:#f87171;font-family:var(--font-mono)">1</span> failed'));
     assert.match(html, /\(\+ 1 dry run\)/);
   });
 });
