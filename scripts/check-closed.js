@@ -20,7 +20,8 @@ const path = require('path');
 const Database = require('better-sqlite3');
 const { sleep } = require('../lib/utils');
 const { logEvent } = require('../lib/db');
-const log = require('../lib/logger')('check-closed');
+const logPaths = require('../lib/log-paths');
+const log = require('../lib/logger')('check-closed', { logFile: logPaths.daily('check-closed') });
 
 const DB_PATH = process.env.JOB_DB_PATH || path.join(__dirname, '../profiles/example/jobs.db');
 const db = new Database(DB_PATH);
@@ -264,7 +265,7 @@ async function main() {
     ORDER BY platform, company
   `).all();
 
-  console.log(`Checking ${jobs.length} jobs for closure...`);
+  log.info(`Checking jobs for closure`, { count: jobs.length });
 
   let closed = 0;
   let checked = 0;
@@ -286,7 +287,7 @@ async function main() {
           UPDATE jobs SET stage='closed', status='archived', updated_at=datetime('now') WHERE id=?
         `).run(job.id);
         logEvent(db, job.id, 'stage_change', job.stage || null, 'closed');
-        console.log(`  [closed] ${job.company} / ${job.title} (${job.platform})`);
+        log.info('Job closed', { company: job.company, title: job.title, platform: job.platform });
         closed++;
         checked++;
       } else {
@@ -297,10 +298,10 @@ async function main() {
     if (i + CHECK_CONCURRENCY < jobs.length) await sleep(DELAY_MS);
   }
 
-  console.log(`Done. checked=${checked} closed=${closed} skipped=${skipped}`);
+  log.info('Done', { checked, closed, skipped });
 }
 
 main().catch(err => {
-  console.error('check-closed error:', err.message);
+  log.error('check-closed error', { error: err.message });
   process.exit(1);
 });

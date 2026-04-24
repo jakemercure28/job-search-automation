@@ -2,7 +2,8 @@
 
 const path = require('path');
 const { loadDashboardEnv } = require('../lib/env');
-const log = require('../lib/logger')('run-auto-apply');
+const logPaths = require('../lib/log-paths');
+const log = require('../lib/logger')('run-auto-apply', { logFile: logPaths.daily('auto-apply') });
 
 function parseDryRun(argv) {
   return argv.includes('--dry-run');

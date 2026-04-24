@@ -14,7 +14,8 @@ const path = require('path');
 const Database = require('better-sqlite3');
 const { scoreJob } = require('../scorer');
 const { sleep } = require('../lib/utils');
-const log = require('../lib/logger')('rescore');
+const logPaths = require('../lib/log-paths');
+const log = require('../lib/logger')('rescore', { logFile: logPaths.daily('rescore') });
 
 const DB_PATH = process.env.JOB_DB_PATH || path.join(__dirname, '../profiles/example/jobs.db');
 const db = new Database(DB_PATH);
@@ -37,7 +38,7 @@ async function main() {
       company, title
   `).all();
 
-  console.log(`Jobs to re-score: ${jobs.length}${DRY_RUN ? ' (dry-run)' : ''}`);
+  log.info('Jobs to re-score', { count: jobs.length, dryRun: DRY_RUN });
 
   let done = 0, errors = 0, changed = 0;
 
@@ -46,7 +47,7 @@ async function main() {
       const result = await scoreJob(job);
       const rawScore = result?.score;
       if (rawScore == null) {
-        console.log(`  [skip] ${job.company} / ${job.title} — no score returned`);
+        log.warn('No score returned', { company: job.company, title: job.title });
         errors++;
         continue;
       }
@@ -60,20 +61,20 @@ async function main() {
 
       const diff = prev != null ? ` (was ${prev})` : ' (new)';
       if (prev !== rawScore) changed++;
-      console.log(`  [${DRY_RUN ? 'dry' : 'ok'}] ${job.company} / ${job.title} → ${rawScore}${diff}`);
+      log.info(DRY_RUN ? 'dry-run' : 'scored', { company: job.company, title: job.title, score: rawScore, prev: job.score });
       done++;
     } catch (err) {
-      console.error(`  [err] ${job.company} / ${job.title}: ${err.message}`);
+      log.error('Score failed', { company: job.company, title: job.title, error: err.message });
       errors++;
     }
 
     await sleep(DELAY_MS);
   }
 
-  console.log(`\nDone. scored=${done} changed=${changed} errors=${errors}`);
+  log.info('Done', { scored: done, changed, errors });
 }
 
 main().catch(err => {
-  console.error('Fatal:', err.message);
+  log.error('Fatal', { error: err.message });
   process.exit(1);
 });

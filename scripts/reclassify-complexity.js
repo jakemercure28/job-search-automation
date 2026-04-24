@@ -3,7 +3,8 @@
 const { loadDashboardEnv } = require('../lib/env');
 const { getDb } = require('../lib/db');
 const { classifyComplexity } = require('../lib/complexity');
-const log = require('../lib/logger')('reclassify-complexity');
+const logPaths = require('../lib/log-paths');
+const log = require('../lib/logger')('reclassify-complexity', { logFile: logPaths.daily('reclassify') });
 
 async function run() {
   loadDashboardEnv();
