@@ -8,6 +8,7 @@ const { renderAutoApplyLog, getLatestRealAutoApplyOutcomes } = require('../lib/h
 describe('auto-apply log summary', () => {
   it('counts latest real outcome per job instead of every retry attempt', () => {
     const rows = [
+      { job_id: 'guided', attempted_at: '2026-04-12T19:30:39.779Z', status: 'prepared', dry_run: 0, company: 'atlas', title: 'Platform', score: 8 },
       { job_id: 'zora', attempted_at: '2026-04-12T19:43:39.779Z', status: 'success', dry_run: 0, company: 'zora', title: 'SRE', score: 8 },
       { job_id: 'poshmark', attempted_at: '2026-04-12T19:58:01.660Z', status: 'failed', dry_run: 0, company: 'poshmark', title: 'SRE', score: 8 },
       { job_id: 'poshmark', attempted_at: '2026-04-12T19:58:50.552Z', status: 'failed', dry_run: 0, company: 'poshmark', title: 'SRE', score: 8 },
@@ -19,6 +20,7 @@ describe('auto-apply log summary', () => {
     assert.deepEqual(
       getLatestRealAutoApplyOutcomes(rows).map(row => ({ job_id: row.job_id, status: row.status })),
       [
+        { job_id: 'guided', status: 'prepared' },
         { job_id: 'zora', status: 'success' },
         { job_id: 'poshmark', status: 'failed' },
         { job_id: 'mercury', status: 'success' },
@@ -26,7 +28,7 @@ describe('auto-apply log summary', () => {
     );
 
     const html = renderAutoApplyLog({ autoApplyLog: rows });
-    assert.ok(html.includes('>3</span> jobs &mdash; <span style="color:#4ade80;font-family:var(--font-mono)">2</span> succeeded, <span style="color:#f87171;font-family:var(--font-mono)">1</span> failed'));
+    assert.ok(html.includes('>4</span> jobs &mdash; <span style="color:#93c5fd;font-family:var(--font-mono)">1</span> prepared, <span style="color:#4ade80;font-family:var(--font-mono)">2</span> submitted, <span style="color:#f87171;font-family:var(--font-mono)">1</span> failed'));
     assert.match(html, /\(\+ 1 dry run\)/);
   });
 });
