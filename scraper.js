@@ -9,6 +9,9 @@
 'use strict';
 
 const fs = require('fs');
+const { loadDashboardEnv } = require('./lib/env');
+
+loadDashboardEnv(__dirname);
 
 const { jobsJsonPath } = require('./config/paths');
 const log = require('./lib/logger')('scraper');
@@ -96,7 +99,7 @@ async function scrapeAll() {
 // Run standalone
 if (require.main === module) {
   scrapeAll()
-    .then((jobs) => process.stdout.write(JSON.stringify(jobs, null, 2)))
+    .then((jobs) => log.info('Scraped jobs written to jobs.json', { count: jobs.length }))
     .catch((err) => {
       log.error('Fatal error', { error: err.message });
       process.exit(1);

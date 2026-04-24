@@ -5,6 +5,7 @@ const path = require('path');
 const { spawnSync } = require('child_process');
 
 const { loadDashboardEnv, loadEnvFile } = require('../lib/env');
+const { formatBuffer } = require('../lib/refresh-logger');
 
 function parseArgs(argv) {
   const flags = new Set(argv.filter((arg) => arg.startsWith('--')));
@@ -44,20 +45,53 @@ function loadActiveProfileEnv(repoRoot) {
   };
 }
 
+function hms() {
+  return new Date().toISOString().slice(11, 19);
+}
+
+function elapsed(startMs) {
+  const ms = Date.now() - startMs;
+  if (ms < 1000) return `${ms}ms`;
+  const s = ms / 1000;
+  if (s < 60) return `${s.toFixed(1)}s`;
+  const m = Math.floor(s / 60);
+  return `${m}m ${(s % 60).toFixed(0)}s`;
+}
+
+// When stdout is not a TTY (i.e. piped into logs/refresh.log), capture child
+// output and format it as readable text. When interactive, inherit so output
+// streams live to the terminal.
+const IS_LOG = !process.stdout.isTTY;
+
 function runStep(repoRoot, label, args, { optional = false } = {}) {
-  console.log(`[refresh] ${label}...`);
+  const start = Date.now();
+  console.log(`${hms()}  [refresh]  ${label}...`);
+
   const result = spawnSync(process.execPath, args, {
     cwd: repoRoot,
-    stdio: 'inherit',
+    // stderr is where the structured JSON logger writes; stdout is where plain-
+    // text scripts (check-descriptions, check-closed) write their summaries.
+    stdio: IS_LOG ? ['ignore', 'pipe', 'pipe'] : 'inherit',
     env: process.env,
   });
 
-  if (result.status === 0) return;
+  if (IS_LOG) {
+    // JSON structured logs (from lib/logger) come out on stderr; format those.
+    // Plain-text output (check-* scripts) comes on stdout; pass through as-is.
+    for (const line of formatBuffer(result.stderr)) console.log(line);
+    for (const line of formatBuffer(result.stdout)) console.log(line);
+  }
+
+  if (result.status === 0) {
+    console.log(`${hms()}  [refresh]  ${label} done (${elapsed(start)})`);
+    return;
+  }
   if (optional) {
-    console.warn(`[refresh] Skipped ${label} after non-zero exit (${result.status || 1}).`);
+    console.warn(`${hms()}  [refresh]  ${label} skipped — exit ${result.status || 1} (${elapsed(start)})`);
     return;
   }
 
+  console.error(`${hms()}  [refresh]  ${label} FAILED — exit ${result.status || 1} (${elapsed(start)})`);
   process.exit(result.status || 1);
 }
 
@@ -89,9 +123,14 @@ function main() {
     return;
   }
 
+  const runStart = Date.now();
   const active = loadActiveProfileEnv(repoRoot);
-  console.log(`[refresh] Active profile: ${active.profileDir}`);
-  console.log(`[refresh] Active DB: ${active.dbPath}`);
+
+  console.log(`\n${'─'.repeat(60)}`);
+  console.log(`${new Date().toISOString().slice(0, 19)}Z  [refresh]  RUN START`);
+  console.log(`  profile  ${active.profileDir}`);
+  console.log(`  db       ${active.dbPath}`);
+  console.log('─'.repeat(60));
 
   runStep(repoRoot, 'Scraping jobs', ['scraper.js']);
   runStep(repoRoot, 'Running pipeline', ['pipeline.js']);
@@ -113,7 +152,9 @@ function main() {
     runStep(repoRoot, 'Validating ATS slugs', ['scripts/validate-slugs.js', '--broken-only'], { optional: true });
   }
 
-  console.log('[refresh] Done.');
+  console.log('─'.repeat(60));
+  console.log(`${new Date().toISOString().slice(0, 19)}Z  [refresh]  RUN COMPLETE (${elapsed(runStart)})`);
+  console.log('─'.repeat(60));
 }
 
 if (require.main === module) {

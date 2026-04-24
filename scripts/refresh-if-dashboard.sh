@@ -10,12 +10,16 @@ LOG="$REPO/logs/refresh.log"
 
 mkdir -p "$REPO/logs"
 
+NOW() { date -u +"%Y-%m-%dT%H:%M:%SZ"; }
+
 if ! lsof -ti :"$PORT" > /dev/null 2>&1; then
-  echo "$(date): dashboard not running on port $PORT — skipping refresh" >> "$LOG"
+  echo "$(NOW()) [refresh-if-dashboard] dashboard not running on port $PORT — skipping" >> "$LOG"
   exit 0
 fi
 
-echo "$(date): dashboard detected, starting refresh" >> "$LOG"
+echo "$(NOW()) [refresh-if-dashboard] dashboard detected on port $PORT — starting refresh" >> "$LOG"
 cd "$REPO"
 node scripts/refresh.js "$@" >> "$LOG" 2>&1
-echo "$(date): refresh complete" >> "$LOG"
+EXIT=$?
+echo "$(NOW()) [refresh-if-dashboard] refresh exited ($EXIT)" >> "$LOG"
+exit $EXIT
