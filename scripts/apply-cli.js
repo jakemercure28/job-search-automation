@@ -31,15 +31,17 @@ Commands:
   prep      Generate manual apply prep for one job
   resume    Generate a tailored resume PDF for one job
   show      Show job URL, prep status, and resume paths
+  apply     Open headed browser, auto-fill form, pause for you to review and submit
 
 Flags:
-  --job=<id>           Target one job for prep/resume/show
+  --job=<id>           Target one job for prep/resume/show/apply
   --status=<status>    Filter list by job status
   --company=<text>     Filter list by company substring
   --title=<text>       Filter list by title substring
   --min-score=<n>      Filter list by minimum score
   --limit=<n>          Limit list output (default: 25)
   --force              Regenerate prep or tailored resume
+  --skip-resume        Skip tailored resume generation in apply command
   --json               Emit JSON
 `);
 }
@@ -138,6 +140,172 @@ function buildShowPayload(db, job, profileDir) {
   };
 }
 
+function prompt(question) {
+  const rl = require('readline').createInterface({ input: process.stdin, output: process.stdout });
+  return new Promise((resolve) => {
+    rl.question(question, (answer) => {
+      rl.close();
+      resolve(answer.trim().toLowerCase());
+    });
+  });
+}
+
+async function runAssist(db, flags) {
+  const {
+    applyWithPlatform,
+    buildApplicantForJob,
+    buildReviewPayload,
+    detectPlatform,
+    refreshJobReadiness,
+  } = require('../lib/auto-applier');
+  const { prepareApplication } = require('../lib/application-prep');
+  const { generateTailoredResume } = require('../lib/tailored-resume');
+  const { recordAutoApplyAttempt } = require('../lib/auto-apply-receipts');
+  const { baseDir } = require('../config/paths');
+  const applicantDefaults = require('../config/applicant');
+
+  const job = fetchJob(db, flags.job);
+
+  const platform = detectPlatform(job);
+  const supported = new Set(['greenhouse', 'lever', 'ashby']);
+  if (!platform || !supported.has(platform)) {
+    console.log(`\nPlatform "${platform || 'unknown'}" is not supported for assisted apply.`);
+    console.log(`Apply manually: ${job.url}`);
+    return;
+  }
+
+  // Step 1 — prep
+  process.stdout.write(`\n[1/4] Loading prep for ${job.company} / ${job.title}...\n`);
+  const prep = await prepareApplication(db, job, { force: Boolean(flags.force) });
+
+  if (prep.status !== 'ready') {
+    console.error(`\nPrep failed: ${prep.error || prep.page_issue || 'unknown error'}`);
+    process.exit(1);
+  }
+
+  // Step 2 — review
+  const review = buildReviewPayload(job, prep);
+  const resolved = review.resolvedAnswers || [];
+  const unresolved = review.unresolvedFields || [];
+  const lowConf = review.lowConfidenceFields || [];
+
+  process.stdout.write(`\n[2/4] ${resolved.length} answers ready`);
+  if (unresolved.length || lowConf.length) {
+    process.stdout.write(`, ${unresolved.length + lowConf.length} need attention`);
+  }
+  process.stdout.write('\n\n');
+
+  if (resolved.length) {
+    const labelWidth = Math.max(...resolved.map((r) => r.label.length), 5);
+    for (const r of resolved) {
+      const dots = '.'.repeat(labelWidth - r.label.length + 2);
+      console.log(`  ${r.label} ${dots} ${r.value}`);
+    }
+  }
+
+  if (unresolved.length) {
+    console.log('\n  Unresolved fields (will be left blank):');
+    for (const f of unresolved) console.log(`    - ${f.label}`);
+  }
+  if (lowConf.length) {
+    console.log('\n  Low-confidence fields (review carefully):');
+    for (const f of lowConf) console.log(`    - ${f.label}`);
+  }
+
+  if (unresolved.length || lowConf.length) {
+    const answer = await prompt('\n  Continue anyway? [y/N] ');
+    if (answer !== 'y') {
+      console.log('Aborted.');
+      return;
+    }
+  }
+
+  // Optional tailored resume
+  if (!flags['skip-resume']) {
+    const { getTailoredResume } = require('../lib/tailored-resume');
+    const existing = getTailoredResume(db, job.id);
+    if (!existing || existing.status !== 'ready') {
+      process.stdout.write('  Generating tailored resume...\n');
+      await generateTailoredResume(db, job, { force: false, renderPdf: true });
+    }
+  }
+
+  const { pickResume } = require('../lib/apply/shared');
+  const applicant = { ...applicantDefaults, resumePath: pickResume(job) };
+  const refreshed = await refreshJobReadiness(db, job);
+
+  // Step 3 — open browser
+  console.log('\n[3/4] Opening browser in headed mode...');
+  let result;
+  try {
+    result = await applyWithPlatform(refreshed, applicant, platform, {
+      mode: 'assist',
+      prep: { ...prep, unresolvedFields: unresolved, lowConfidenceFields: lowConf },
+    });
+  } catch (err) {
+    console.error(`\nBrowser error: ${err.message}`);
+    recordAutoApplyAttempt(db, {
+      job: refreshed,
+      result: { success: false, status: 'failed', error: err.message },
+      applicant,
+      actor: 'cli-assist',
+      mode: 'assist',
+      platform,
+    });
+    process.exit(1);
+  }
+
+  if (!result.success) {
+    console.error(`\nCould not fill form: ${result.error || 'unknown error'}`);
+    if (result.preImagePath || result.incompleteImagePath) {
+      console.log(`Screenshot: ${result.preImagePath || result.incompleteImagePath}`);
+    }
+    recordAutoApplyAttempt(db, {
+      job: refreshed,
+      result,
+      applicant,
+      actor: 'cli-assist',
+      mode: 'assist',
+      platform,
+    });
+    process.exit(1);
+  }
+
+  // Step 4 — hand off to user
+  console.log('\n[4/4] Form filled. Browser is open — review and click Submit.');
+  if (result.preImagePath) console.log(`      Screenshot: ${result.preImagePath}`);
+  console.log('');
+
+  await prompt('      Press Enter when you have submitted (or Ctrl+C to abort)... ');
+
+  const submitted = await prompt('      Mark job as applied? [y/N] ');
+  const success = submitted === 'y';
+
+  if (success) {
+    const now = new Date().toISOString();
+    db.prepare(`
+      UPDATE jobs
+      SET status = 'applied', stage = 'applied',
+          applied_at = CASE WHEN applied_at IS NULL THEN ? ELSE applied_at END,
+          updated_at = datetime('now')
+      WHERE id = ?
+    `).run(now, refreshed.id);
+    console.log(`\nMarked ${job.company} / ${job.title} as applied.`);
+  } else {
+    console.log('\nNot marked as applied. You can update the status from the dashboard.');
+  }
+
+  recordAutoApplyAttempt(db, {
+    job: refreshed,
+    result: { ...result, success, status: success ? 'success' : 'aborted' },
+    applicant,
+    actor: 'cli-assist',
+    attemptedAt: new Date().toISOString(),
+    mode: 'assist',
+    platform,
+  });
+}
+
 async function main(argv = process.argv.slice(2)) {
   const { flags, positionals } = parseArgs(argv);
   const command = positionals[0] || 'list';
@@ -203,6 +371,11 @@ async function main(argv = process.argv.slice(2)) {
     case 'show': {
       const job = fetchJob(db, flags.job);
       printOutput(buildShowPayload(db, job, baseDir), asJson);
+      return;
+    }
+
+    case 'apply': {
+      await runAssist(db, flags);
       return;
     }
 
