@@ -71,10 +71,11 @@ describe('auto-apply receipts', () => {
       autoApplyFilters: {},
     });
 
-    assert.match(html, /Auto Applies/);
+    assert.match(html, /Guided Apply Receipts/);
     assert.match(html, /Retry Needed/);
     assert.match(html, /Manual Review/);
     assert.match(html, /Failure Class/);
+    assert.match(html, />Assist</);
     assert.match(html, /attemptId=7&type=resume/);
     assert.match(html, /Platform Engineer/);
   });

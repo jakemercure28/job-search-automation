@@ -2,8 +2,8 @@
 'use strict';
 
 const path = require('path');
-const readline = require('readline/promises');
-const { spawnSync } = require('child_process');
+const readline = require('node:readline/promises');
+const { stdin, stdout } = require('node:process');
 const { loadDashboardEnv } = require('../lib/env');
 
 function parseArgs(argv) {
@@ -22,9 +22,7 @@ function parseArgs(argv) {
       flags[trimmed] = true;
       continue;
     }
-    const key = trimmed.slice(0, eqIndex);
-    const value = trimmed.slice(eqIndex + 1);
-    flags[key] = value;
+    flags[trimmed.slice(0, eqIndex)] = trimmed.slice(eqIndex + 1);
   }
 
   return { flags, positionals };
@@ -36,29 +34,29 @@ function parseInteger(value, fallback = null) {
   return Number.isInteger(parsed) ? parsed : fallback;
 }
 
-function parseCsv(value) {
-  if (!value) return null;
-  const items = String(value).split(',').map((item) => item.trim()).filter(Boolean);
-  return items.length ? items : null;
+function printUsage() {
+  console.log(`Usage: node scripts/auto-apply-cli.js <command> [flags]
+
+Commands:
+  apply      Generate prep, show answers, ask for approval, then submit
+  prepare    Generate prep and print the review payload without submitting
+  review     Generate prep and walk unresolved answers interactively without submitting
+  show       Show recent reviewed apply receipts
+
+Common flags:
+  --job=<id>           Target one job; otherwise the highest-score pending supported job is used
+  --actor=<name>       Record who initiated the run (default: manual)
+  --json               Emit JSON
+
+Apply flags:
+  --yes                Skip the interactive approval prompt and submit immediately
+  --force              Regenerate prep even if one already exists
+`);
 }
 
-function shellQuote(value) {
-  return `'${String(value).replace(/'/g, `'\\''`)}'`;
-}
-
-function maybeRunRemote(argv, flags) {
-  const remoteHost = flags.remote ? String(flags.remote) : '';
-  if (!remoteHost || flags['remote-exec']) return false;
-
-  const remoteRepo = String(flags['remote-repo'] || '/Users/jake/job-search-automation');
-  const remoteNode = String(flags['remote-node'] || '/opt/homebrew/opt/node@22/bin/node');
-  const forwardedArgs = argv
-    .filter((arg) => !arg.startsWith('--remote=') && !arg.startsWith('--remote-repo=') && !arg.startsWith('--remote-node='))
-    .concat('--remote-exec');
-  const remoteCmd = `cd ${shellQuote(remoteRepo)} && ${shellQuote(remoteNode)} scripts/auto-apply-cli.js ${forwardedArgs.map(shellQuote).join(' ')}`;
-
-  const result = spawnSync('ssh', [remoteHost, remoteCmd], { stdio: 'inherit' });
-  process.exit(result.status || 0);
+function loadAutoApplyConfig() {
+  const profileDir = path.resolve(process.env.JOB_PROFILE_DIR || path.join(__dirname, '..', 'profiles', 'example'));
+  return require(path.join(profileDir, 'auto-apply-config'));
 }
 
 function formatTable(rows) {
@@ -89,107 +87,16 @@ function printOutput(payload, asJson) {
     return;
   }
 
-  if (payload?.rows && Array.isArray(payload.rows)) {
-    if (payload.summary) console.log(JSON.stringify(payload.summary, null, 2));
-    console.log(formatTable(payload.rows));
-    return;
-  }
-
   console.log(JSON.stringify(payload, null, 2));
 }
 
-function printUsage() {
-  console.log(`Usage: node scripts/auto-apply-cli.js <command> [flags]
-
-Commands:
-  plan       List eligible and skipped jobs
-  prepare    Generate prep for one job or a batch
-  assist     Guided flow: select next job, generate prep, review, then optionally submit
-  run        Submit a batch of jobs
-  submit     Submit one specific job
-  retry      Retry retryable failed pending jobs
-  show       Show recent attempt receipts
-
-Common flags:
-  --job=<id>           Target one job
-  --limit=<n>          Limit batch size
-  --platforms=a,b      Restrict to platforms
-  --min-score=<n>      Minimum score
-  --max-score=<n>      Maximum score
-  --score-order=asc    Lowest score first (default)
-  --require-ready-prep Only include jobs with an existing ready prep
-  --stop-on-validation-streak=<n>  Halt after n consecutive validation failures on one platform
-  --remote=imac-server Execute the CLI on the iMac repo
-  --json               Emit JSON
-
-Assist flags:
-  --yes                Submit immediately after prep review if ready
-  --dry-run            Submit in dry-run mode
-`);
-}
-
-function loadAutoApplyConfig() {
-  const profileDir = path.resolve(process.env.JOB_PROFILE_DIR || path.join(__dirname, '..', 'profiles', 'example'));
-  return require(path.join(profileDir, 'auto-apply-config'));
-}
-
-function summarizePlan(rows) {
-  const summary = { total: rows.length, eligible: 0, skipped: 0, skipReasons: {} };
-  for (const row of rows) {
-    if (row.canSubmit && !row.skipReason) {
-      summary.eligible += 1;
-      continue;
-    }
-    summary.skipped += 1;
-    const key = row.skipReason || 'unknown';
-    summary.skipReasons[key] = (summary.skipReasons[key] || 0) + 1;
-  }
-  return summary;
-}
-
-function formatAnswerValue(value) {
-  if (Array.isArray(value)) return value.join(', ');
-  if (value == null || value === '') return '—';
-  return String(value);
-}
-
-function buildAssistReview(job, prep) {
-  const questions = Array.isArray(prep?.questions) ? prep.questions : [];
-  const answers = prep?.answers || {};
-  const resolvedAnswers = questions
-    .filter((field) => Object.prototype.hasOwnProperty.call(answers, field.name))
-    .map((field) => ({
-      label: field.label,
-      value: formatAnswerValue(answers[field.name]),
-    }));
-  const unresolvedQuestions = questions
-    .filter((field) => !Object.prototype.hasOwnProperty.call(answers, field.name))
-    .map((field) => field.label);
-
-  return {
-    jobId: job?.id || null,
-    company: job?.company || null,
-    title: job?.title || null,
-    score: job?.score ?? null,
-    platform: job?.platform || null,
-    applyComplexity: job?.apply_complexity || null,
-    prepStatus: prep?.status || null,
-    workflow: prep?.workflow || null,
-    summary: prep?.summary || null,
-    applyUrl: prep?.apply_url || job?.url || null,
-    overridePath: job?.id ? require('../lib/application-overrides').overridePathForJob(job.id) : null,
-    resolvedAnswers,
-    unresolvedQuestions,
-    submitEligible: prep?.status === 'ready',
-  };
-}
-
-function printAssistReview(review) {
+function printReview(review) {
   console.log('');
   console.log(`${review.company} | ${review.title}`);
   console.log(`job: ${review.jobId}`);
   console.log(`score: ${review.score ?? '—'} | platform: ${review.platform || '—'} | complexity: ${review.applyComplexity || '—'}`);
   console.log(`prep: ${review.prepStatus || '—'} | workflow: ${review.workflow || '—'}`);
+  console.log(`apply url: ${review.applyUrl || '—'}`);
   console.log(`summary: ${review.summary || '—'}`);
 
   if (review.resolvedAnswers.length) {
@@ -200,28 +107,176 @@ function printAssistReview(review) {
     }
   }
 
-  if (review.unresolvedQuestions.length) {
+  if (review.unresolvedFields.length) {
     console.log('');
-    console.log('Manual review required for:');
-    for (const label of review.unresolvedQuestions) {
-      console.log(`- ${label}`);
+    console.log('Unresolved fields:');
+    for (const field of review.unresolvedFields) {
+      console.log(`- ${field.label}${field.required ? ' (required)' : ''}`);
     }
-    if (review.overridePath) {
-      console.log(`override file: ${review.overridePath}`);
+  }
+
+  if (review.lowConfidenceFields.length) {
+    console.log('');
+    console.log('Low-confidence fields left for review:');
+    for (const field of review.lowConfidenceFields) {
+      console.log(`- ${field.label}${field.required ? ' (required)' : ''}`);
     }
   }
 
   console.log('');
 }
 
-async function confirmSubmit() {
-  const rl = readline.createInterface({
-    input: process.stdin,
-    output: process.stdout,
-  });
+async function confirmSubmit(review) {
+  const rl = readline.createInterface({ input: stdin, output: stdout });
   try {
-    const answer = await rl.question('Submit this application now? [y/N] ');
-    return /^y(es)?$/i.test(String(answer || '').trim());
+    const answer = await rl.question(`Submit ${review.company} | ${review.title}? [y/N] `);
+    return ['y', 'yes'].includes(String(answer || '').trim().toLowerCase());
+  } finally {
+    rl.close();
+  }
+}
+
+function buildSubmitSummary(result) {
+  const verification = result?.receipt?.details?.verification || result?.details?.verification || {};
+  return {
+    status: result?.status || (result?.success ? 'success' : 'failed'),
+    screenshotPre: verification.preSubmitScreenshot || null,
+    screenshotPost: verification.postSubmitScreenshot || null,
+    confirmationEmail: Boolean(verification.confirmationEmail),
+    securityCode: verification.securityCode || null,
+    error: result?.error || null,
+    attemptId: result?.receipt?.attempt_id || null,
+  };
+}
+
+function formatAnswer(value) {
+  if (Array.isArray(value)) return value.join(', ');
+  if (value == null || value === '') return '';
+  return String(value);
+}
+
+function uniqueReviewFields(review) {
+  const seen = new Set();
+  const ordered = [];
+
+  for (const field of [...(review?.unresolvedFields || []), ...(review?.lowConfidenceFields || [])]) {
+    if (!field?.name || seen.has(field.name)) continue;
+    seen.add(field.name);
+    ordered.push(field);
+  }
+
+  return ordered;
+}
+
+async function promptMenuSelection(rl, prompt, options) {
+  while (true) {
+    for (const [index, option] of options.entries()) {
+      console.log(`${index + 1}. ${option.label}`);
+    }
+
+    const answer = await rl.question(prompt);
+    const selected = Number.parseInt(String(answer || '').trim(), 10);
+    if (Number.isInteger(selected) && selected >= 1 && selected <= options.length) {
+      return options[selected - 1].value;
+    }
+
+    console.log(`Enter a number between 1 and ${options.length}.`);
+  }
+}
+
+async function promptYesNo(rl, prompt, defaultYes = true) {
+  const suffix = defaultYes ? '[Y/n]' : '[y/N]';
+  const answer = await rl.question(`${prompt} ${suffix} `);
+  const normalized = String(answer || '').trim().toLowerCase();
+  if (!normalized) return defaultYes;
+  return ['y', 'yes'].includes(normalized);
+}
+
+async function promptFieldValue(rl, field, currentValue) {
+  const current = formatAnswer(currentValue);
+
+  console.log('');
+  console.log(`${field.label}${field.required ? ' (required)' : ''}`);
+  if (current) console.log(`Current: ${current}`);
+
+  if (Array.isArray(field.options) && field.options.length) {
+    const options = [];
+
+    if (current) {
+      options.push({ label: `Keep current: ${current}`, value: currentValue });
+    }
+
+    for (const option of field.options) {
+      if (current && String(option) === current) continue;
+      options.push({ label: String(option), value: option });
+    }
+
+    if (!field.required) {
+      options.push({ label: 'Leave blank', value: '' });
+    }
+
+    return promptMenuSelection(rl, 'Select an option: ', options);
+  }
+
+  if (field.required) {
+    while (true) {
+      const prompt = current
+        ? 'Enter value (press Enter to keep current): '
+        : 'Enter value: ';
+      const answer = await rl.question(prompt);
+      if (!String(answer || '').trim()) {
+        if (current) return currentValue;
+        console.log('A value is required.');
+        continue;
+      }
+      return answer;
+    }
+  }
+
+  const prompt = current
+    ? 'Enter value (press Enter to keep current, "-" to leave blank): '
+    : 'Enter value (press Enter to leave blank): ';
+  const answer = await rl.question(prompt);
+  if (!String(answer || '').trim()) {
+    return current || !field.required ? (current ? currentValue : '') : currentValue;
+  }
+  if (String(answer).trim() === '-') return '';
+  return answer;
+}
+
+async function runInteractiveReview(prepared, job, actor, refreshPrepared, saveAnswers, asJson) {
+  if (asJson) return { prepared, aborted: false };
+
+  const rl = readline.createInterface({ input: stdin, output: stdout });
+  let current = prepared;
+
+  try {
+    while (!current.review.submitEligible) {
+      const fields = uniqueReviewFields(current.review);
+      if (!fields.length) break;
+
+      console.log('');
+      console.log('Interactive review');
+
+      const updates = {};
+      for (const field of fields) {
+        const currentValue = current.prep?.answers?.[field.name];
+        updates[field.name] = await promptFieldValue(rl, field, currentValue);
+      }
+
+      saveAnswers(job, current.review.applyUrl, updates, fields);
+      current = await refreshPrepared();
+      printReview(current.review);
+
+      if (current.review.submitEligible) break;
+
+      const continueReview = await promptYesNo(rl, 'Some fields still need review. Continue?', true);
+      if (!continueReview) {
+        return { prepared: current, aborted: true };
+      }
+    }
+
+    return { prepared: current, aborted: false };
   } finally {
     rl.close();
   }
@@ -229,230 +284,172 @@ async function confirmSubmit() {
 
 async function main() {
   const parsed = parseArgs(process.argv.slice(2));
-  maybeRunRemote(process.argv.slice(2), parsed.flags);
+  if (parsed.flags.remote || parsed.flags['remote-repo'] || parsed.flags['remote-node'] || parsed.flags['remote-exec']) {
+    throw new Error('Remote apply execution has been removed. Run the reviewed apply CLI on the local MacBook checkout.');
+  }
 
   loadDashboardEnv(path.join(__dirname, '..'));
 
   const { getDb } = require('../lib/db');
-  const { applyOne, planAutoApply, prepareOne, run } = require('../lib/auto-applier');
-  const { getApplicationPrep } = require('../lib/application-prep');
-  const { listAutoApplyAttempts, summarizeAutoApplyAttempts } = require('../lib/auto-apply-receipts');
+  const { prepareOne, submitOne, findNextApplyJob } = require('../lib/auto-applier');
+  const { listAutoApplyAttempts } = require('../lib/auto-apply-receipts');
+  const { upsertApplicationOverrides } = require('../lib/application-overrides');
 
   const { flags, positionals } = parsed;
-  const command = positionals[0] || 'run';
-  const dryRun = Boolean(flags['dry-run']);
+  const command = positionals[0] || 'apply';
   const asJson = Boolean(flags.json);
   const actor = String(flags.actor || flags.source || 'manual');
-  const jobId = flags.job ? String(flags.job) : null;
-  const limit = parseInteger(flags.limit, null);
-  const minScore = parseInteger(flags['min-score'], null);
-  const maxScore = parseInteger(flags['max-score'], null);
-  const days = parseInteger(flags.days, null);
-  const platforms = parseCsv(flags.platforms || flags.platform);
-  const scoreOrder = String(flags['score-order'] || (flags['high-score-first'] ? 'desc' : 'asc'));
-  const yes = Boolean(flags.yes);
-  const requireReadyPrep = Boolean(flags['require-ready-prep']);
-  const stopOnValidationStreak = parseInteger(flags['stop-on-validation-streak'], 0);
+  const explicitJobId = flags.job ? String(flags.job) : null;
+
+  if (['help', '--help', '-h'].includes(command)) {
+    printUsage();
+    return;
+  }
 
   const db = getDb();
   const config = loadAutoApplyConfig();
+  const selectedJob = explicitJobId
+    ? db.prepare('SELECT * FROM jobs WHERE id = ?').get(explicitJobId)
+    : findNextApplyJob(db, config);
 
-  let payload;
+  if ((command === 'apply' || command === 'prepare' || command === 'review') && !selectedJob) {
+    throw new Error('No eligible pending supported jobs found');
+  }
+
   switch (command) {
-    case 'help':
-    case '--help':
-    case '-h':
-      printUsage();
-      return;
-
-    case 'plan':
-      payload = await planAutoApply(db, config, {
-        jobId,
-        retryFailed: Boolean(flags['retry-failed']),
-        minScore,
-        maxScore,
-        platforms,
-        includeSkipped: true,
-        scoreOrder,
-        refreshReadiness: Boolean(flags.refresh),
-        requireReadyPrep,
-      });
-      if (asJson) payload = { summary: summarizePlan(payload), rows: payload };
-      else console.log(JSON.stringify(summarizePlan(payload), null, 2));
-      break;
-
-    case 'prepare':
-      if (jobId) {
-        payload = await prepareOne(db, config, jobId, { actor, dryRun, force: Boolean(flags.force) });
-      } else {
-        payload = await run(db, config, dryRun, {
-          actor,
-          mode: 'prepare',
-          limit,
-          minScore,
-          maxScore,
-          platforms,
-          scoreOrder,
-          requireReadyPrep,
-        });
-      }
-      break;
-
-    case 'assist': {
-      let targetJobId = jobId;
-      if (!targetJobId) {
-        const planRows = await planAutoApply(db, config, {
-          retryFailed: Boolean(flags['retry-failed']),
-          minScore,
-          maxScore,
-          platforms,
-          includeSkipped: false,
-          scoreOrder,
-          refreshReadiness: true,
-          requireReadyPrep,
-        });
-        const nextCandidate = planRows.find((row) => row.canSubmit && !row.skipReason);
-        if (!nextCandidate) throw new Error('No eligible pending jobs found for guided auto-apply');
-        targetJobId = nextCandidate.jobId;
-      }
-
-      const prepResult = await prepareOne(db, config, targetJobId, {
+    case 'prepare': {
+      const result = await prepareOne(db, config, selectedJob.id, {
         actor,
-        dryRun,
-        force: true,
+        force: Boolean(flags.force),
       });
-      const job = db.prepare('SELECT * FROM jobs WHERE id = ?').get(targetJobId);
-      const prep = getApplicationPrep(db, targetJobId);
-      const review = buildAssistReview(job, prep);
-
-      if (asJson) {
-        payload = {
-          stage: review.submitEligible ? 'ready_for_review' : 'manual_review_required',
-          review,
-          prepResult,
-        };
-        if (!review.submitEligible || !yes) break;
-
-        const submitResult = await applyOne(db, config, targetJobId, dryRun, { actor });
-        payload = {
-          stage: submitResult.success ? 'submitted' : 'submit_failed',
-          review,
-          prepResult,
-          submitResult,
-        };
-        break;
-      }
-
-      printAssistReview(review);
-      if (!review.submitEligible) {
-        payload = {
-          stage: 'manual_review_required',
-          review,
-          prepResult,
-        };
-        break;
-      }
-
-      const shouldSubmit = yes ? true : await confirmSubmit();
-      if (!shouldSubmit) {
-        payload = {
-          stage: 'ready_for_review',
-          review,
-          prepResult,
-        };
-        break;
-      }
-
-      const submitResult = await applyOne(db, config, targetJobId, dryRun, { actor });
-      payload = {
-        stage: submitResult.success ? 'submitted' : 'submit_failed',
-        review,
-        prepResult,
-        submitResult,
-      };
-      break;
+      if (!asJson) printReview(result.review);
+      printOutput(result, asJson);
+      return;
     }
 
-    case 'run':
-      payload = await run(db, config, dryRun, {
+    case 'review': {
+      let prepared = await prepareOne(db, config, selectedJob.id, {
         actor,
-        mode: 'submit',
-        limit,
-        minScore,
-        maxScore,
-        platforms,
-        retryFailed: Boolean(flags['retry-failed']),
-        scoreOrder,
-        requireReadyPrep,
-        stopOnValidationStreak,
+        force: Boolean(flags.force),
       });
-      break;
+      if (!asJson) printReview(prepared.review);
 
-    case 'submit':
-      if (!jobId) throw new Error('submit requires --job=<job-id>');
-      payload = await applyOne(db, config, jobId, dryRun, {
-        actor,
-        allowRetry: Boolean(flags['retry-failed']),
-      });
-      break;
+      if (!prepared.success) {
+        printOutput(prepared, asJson);
+        process.exit(1);
+      }
 
-    case 'retry':
-      payload = await run(db, config, dryRun, {
+      const reviewed = await runInteractiveReview(
+        prepared,
+        selectedJob,
         actor,
-        mode: 'submit',
-        retryFailed: true,
-        limit,
-        minScore,
-        maxScore,
-        platforms,
-        scoreOrder,
-        requireReadyPrep,
-        stopOnValidationStreak,
+        () => prepareOne(db, config, selectedJob.id, { actor, force: true }),
+        (job, applyUrl, updates, fields) => upsertApplicationOverrides(job, applyUrl, updates, fields),
+        asJson
+      );
+      prepared = reviewed.prepared;
+      printOutput(prepared, asJson);
+      if (reviewed.aborted && !prepared.review.submitEligible) process.exit(1);
+      return;
+    }
+
+    case 'apply': {
+      let prepared = await prepareOne(db, config, selectedJob.id, {
+        actor,
+        force: Boolean(flags.force),
       });
-      break;
+      if (!asJson) printReview(prepared.review);
+
+      if (!prepared.success) {
+        printOutput(prepared, asJson);
+        process.exit(1);
+      }
+
+      if (!prepared.review.submitEligible) {
+        if (asJson) {
+          const result = {
+            success: false,
+            status: 'failed',
+            error: 'Manual review required before submit. Run `review` or fill the missing answers and rerun apply.',
+            review: prepared.review,
+            receipt: prepared.receipt,
+          };
+          printOutput(result, asJson);
+          process.exit(1);
+        }
+
+        const reviewed = await runInteractiveReview(
+          prepared,
+          selectedJob,
+          actor,
+          () => prepareOne(db, config, selectedJob.id, { actor, force: true }),
+          (job, applyUrl, updates, fields) => upsertApplicationOverrides(job, applyUrl, updates, fields),
+          asJson
+        );
+        prepared = reviewed.prepared;
+
+        if (!prepared.review.submitEligible) {
+          const result = {
+            success: false,
+            status: reviewed.aborted ? 'aborted' : 'failed',
+            error: 'Manual review required before submit. Review the remaining answers and rerun apply.',
+            review: prepared.review,
+            receipt: prepared.receipt,
+          };
+          printOutput(result, asJson);
+          process.exit(1);
+        }
+      }
+
+      const approved = flags.yes ? true : await confirmSubmit(prepared.review);
+      if (!approved) {
+        const result = {
+          success: false,
+          status: 'aborted',
+          review: prepared.review,
+          message: 'Submission aborted before submit.',
+          receipt: prepared.receipt,
+        };
+        printOutput(result, asJson);
+        return;
+      }
+
+      const submitted = await submitOne(db, config, selectedJob.id, { actor });
+      const payload = {
+        ...submitted,
+        verification: buildSubmitSummary(submitted),
+      };
+      printOutput(payload, asJson);
+      if (!submitted.success) process.exit(1);
+      return;
+    }
 
     case 'show': {
+      const limit = parseInteger(flags.limit, 25) || 25;
       const rows = listAutoApplyAttempts(db, {
-        limit: limit || 25,
+        limit,
+        jobId: explicitJobId,
         status: flags.status ? String(flags.status) : null,
-        platform: flags.platform ? String(flags.platform) : null,
-        mode: flags.mode ? String(flags.mode) : null,
-        minScore,
-        maxScore,
-        days,
+        mode: 'submit',
         actor: flags.actor ? String(flags.actor) : null,
-        failureClass: flags['failure-class'] ? String(flags['failure-class']) : null,
-        jobId,
-      });
-      const mappedRows = rows.map((row) => ({
+      }).map((row) => ({
         attempt_id: row.attempt_id,
         when: row.attempted_at,
         company: row.company,
         title: row.title,
-        score: row.score ?? '',
-        platform: row.platform || '',
         status: row.status,
-        mode: row.dry_run ? 'dry-run' : row.mode,
         actor: row.actor || '',
-        failure_class: row.failure_class || '',
-        resume: row.resume_filename || '',
-        ...(asJson ? {
-          error: row.display_error || row.error || '',
-          details: row.details || null,
-        } : {}),
+        email_confirmed: row.details?.verification?.confirmationEmail ? 'yes' : 'no',
+        post_screenshot: row.details?.verification?.postSubmitScreenshot || '',
+        error: row.display_error || row.error || '',
       }));
-      payload = {
-        summary: summarizeAutoApplyAttempts(rows),
-        rows: mappedRows,
-      };
-      break;
+      printOutput(rows, asJson);
+      return;
     }
 
     default:
       throw new Error(`Unknown command: ${command}`);
   }
-
-  printOutput(payload, asJson);
 }
 
 main().catch((error) => {

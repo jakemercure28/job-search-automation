@@ -53,8 +53,10 @@ function isStandardField(name, label) {
 
 async function extractGreenhouse(job) {
   // Use Greenhouse questions API for structured data
-  const jobId = job.id.replace('greenhouse-', '');
-  const urlMatch = (job.url || '').match(/greenhouse\.io\/([^/]+)\/jobs\/\d+/);
+  const url = String(job.url || '');
+  const jobIdMatch = url.match(/\/jobs\/(\d+)/) || url.match(/[?&]gh_jid=(\d+)/);
+  const jobId = jobIdMatch ? jobIdMatch[1] : job.id.replace('greenhouse-', '');
+  const urlMatch = url.match(/greenhouse\.io\/([^/]+)\/jobs\/\d+/);
   const company = urlMatch ? urlMatch[1] : (job.company || '').toLowerCase().replace(/\s+/g, '');
   if (!company || !jobId) return [];
 
@@ -149,7 +151,11 @@ async function main() {
   console.error(`Extracting questions for: ${job.company} — ${job.title}`);
   console.error(`Apply URL: ${job.url}`);
 
-  const platform = jobId.split('-')[0].toLowerCase();
+  const lowerPlatform = String(job.platform || '').toLowerCase();
+  const lowerUrl = String(job.url || '').toLowerCase();
+  const platform = lowerPlatform.includes('greenhouse') || lowerUrl.includes('greenhouse')
+    ? 'greenhouse'
+    : jobId.split('-')[0].toLowerCase();
   let customFields = [];
   let pageIssue = null;
   let shouldFallbackToDom = true;

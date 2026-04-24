@@ -6,6 +6,7 @@ const assert = require('node:assert/strict');
 const {
   answerForGreenhouseQuestion,
   classifyGreenhouseSubmitOutcome,
+  greenhouseEducationFieldIsPresent,
   greenhouseComboboxSnapshotIsEmpty,
   resolveGreenhouseQuestionAnswer,
   selectGreenhouseEducationTarget,
@@ -36,6 +37,10 @@ describe('greenhouse auto-apply helpers', () => {
     ]);
 
     assert.equal(target.fieldName, 'school--1');
+  });
+
+  it('does not require education when the form exposes no school inputs', () => {
+    assert.equal(greenhouseEducationFieldIsPresent({ candidates: [], target: null }), false);
   });
 
   it('classifies same-page invalid fields as a validation failure', () => {
