@@ -134,7 +134,9 @@ async function main(argv = process.argv.slice(2)) {
     unresolvedFields: unresolvedFields.map((f) => f.label),
   }, null, 2));
 
-  if (!result.success) process.exit(1);
+  // Force exit — Puppeteer keeps the event loop alive after browser.disconnect()
+  // because it holds a reference to the Chrome subprocess. Chrome stays open.
+  process.exit(result.success ? 0 : 1);
 }
 
 main().catch((err) => {
