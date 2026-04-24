@@ -13,6 +13,7 @@ function parseArgs(argv) {
     skipDescriptions: flags.has('--skip-descriptions'),
     skipClosedCheck: flags.has('--skip-closed-check'),
     skipMarketResearch: flags.has('--skip-market-research'),
+    skipRejectionSync: flags.has('--skip-rejection-sync'),
     withSlugCheck: flags.has('--with-slug-check'),
     help: flags.has('--help') || flags.has('-h'),
   };
@@ -105,11 +106,13 @@ Optional local-only follow-up steps:
   check descriptions
   check closed jobs
   refresh market research
+  sync rejection emails
 
 Flags:
   --skip-descriptions    Skip suspicious JD checks
   --skip-closed-check    Skip closed-job verification
   --skip-market-research Skip market research refresh
+  --skip-rejection-sync  Skip Gmail rejection email sync
   --with-slug-check      Also validate ATS slugs
 `);
 }
@@ -146,6 +149,10 @@ function main() {
 
   if (!args.skipMarketResearch) {
     runStep(repoRoot, 'Refreshing market research', ['scripts/run-market-research.js'], { optional: true });
+  }
+
+  if (!args.skipRejectionSync) {
+    runStep(repoRoot, 'Syncing rejection emails', ['scripts/sync-rejection-emails.js'], { optional: true });
   }
 
   if (args.withSlugCheck) {
