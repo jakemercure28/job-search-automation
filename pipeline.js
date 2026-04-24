@@ -24,7 +24,6 @@ const { scoreJob } = require('./scorer');
 const { callGemini, MODEL } = require('./lib/gemini');
 const { GEMINI_DAILY_LIMIT } = require('./config/constants');
 const { classifyComplexity } = require('./lib/complexity');
-const { run: autoApply } = require('./lib/auto-applier');
 const logPaths = require('./lib/log-paths');
 const log = require('./lib/logger')('pipeline', { logFile: logPaths.daily('pipeline') });
 
@@ -177,15 +176,6 @@ async function run() {
     "SELECT * FROM jobs WHERE apply_complexity IS NULL AND status != 'archived' AND score IS NOT NULL"
   ).all();
   await classifyComplexity(toClassify, db);
-
-  // Auto-apply to high-scoring Greenhouse and Lever jobs
-  try {
-    const autoApplyConfig = require('./profiles/example/auto-apply-config');
-    const dryRun = process.env.AUTO_APPLY_DRY_RUN === 'true';
-    await autoApply(db, autoApplyConfig, dryRun);
-  } catch (e) {
-    log.error('Auto-apply step failed', { error: e.message });
-  }
 
   // Generate and store daily summary from today's new jobs
   const todaysJobs = db.prepare(
