@@ -46,8 +46,12 @@ function loadActiveProfileEnv(repoRoot) {
   };
 }
 
-function hms() {
-  return new Date().toISOString().slice(11, 19);
+function localTime() {
+  return new Date().toLocaleTimeString('en-US', { hour12: false });
+}
+
+function localDateTime() {
+  return new Date().toLocaleString('en-US', { hour12: false }).replace(',', '');
 }
 
 function elapsed(startMs) {
@@ -66,7 +70,7 @@ const IS_LOG = !process.stdout.isTTY;
 
 function runStep(repoRoot, label, args, { optional = false } = {}) {
   const start = Date.now();
-  console.log(`${hms()}  [refresh]  ${label}...`);
+  console.log(`${localTime()}  [refresh]  ${label}...`);
 
   const result = spawnSync(process.execPath, args, {
     cwd: repoRoot,
@@ -84,15 +88,15 @@ function runStep(repoRoot, label, args, { optional = false } = {}) {
   }
 
   if (result.status === 0) {
-    console.log(`${hms()}  [refresh]  ${label} done (${elapsed(start)})`);
+    console.log(`${localTime()}  [refresh]  ${label} done (${elapsed(start)})`);
     return;
   }
   if (optional) {
-    console.warn(`${hms()}  [refresh]  ${label} skipped — exit ${result.status || 1} (${elapsed(start)})`);
+    console.warn(`${localTime()}  [refresh]  ${label} skipped — exit ${result.status || 1} (${elapsed(start)})`);
     return;
   }
 
-  console.error(`${hms()}  [refresh]  ${label} FAILED — exit ${result.status || 1} (${elapsed(start)})`);
+  console.error(`${localTime()}  [refresh]  ${label} FAILED — exit ${result.status || 1} (${elapsed(start)})`);
   process.exit(result.status || 1);
 }
 
@@ -130,7 +134,7 @@ function main() {
   const active = loadActiveProfileEnv(repoRoot);
 
   console.log(`\n${'─'.repeat(60)}`);
-  console.log(`${new Date().toISOString().slice(0, 19)}Z  [refresh]  RUN START`);
+  console.log(`${localDateTime()}  [refresh]  RUN START`);
   console.log(`  profile  ${active.profileDir}`);
   console.log(`  db       ${active.dbPath}`);
   console.log('─'.repeat(60));
@@ -160,7 +164,7 @@ function main() {
   }
 
   console.log('─'.repeat(60));
-  console.log(`${new Date().toISOString().slice(0, 19)}Z  [refresh]  RUN COMPLETE (${elapsed(runStart)})`);
+  console.log(`${localDateTime()}  [refresh]  RUN COMPLETE (${elapsed(runStart)})`);
   console.log('─'.repeat(60));
 }
 

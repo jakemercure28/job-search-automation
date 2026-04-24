@@ -10,7 +10,7 @@ LOG="$REPO/logs/refresh.log"
 
 mkdir -p "$REPO/logs"
 
-NOW() { date -u +"%Y-%m-%dT%H:%M:%SZ"; }
+NOW() { date +"%Y-%m-%dT%H:%M:%S%z"; }
 
 if ! nc -z localhost "$PORT" 2>/dev/null; then
   echo "$(NOW()) [refresh-if-dashboard] dashboard not reachable on port $PORT — skipping" >> "$LOG"
