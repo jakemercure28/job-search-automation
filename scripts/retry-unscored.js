@@ -10,7 +10,8 @@ const {
 } = require('../lib/db');
 const { classifyComplexity } = require('../lib/complexity');
 const { scoreJob } = require('../scorer');
-const log = require('../lib/logger')('score-retry');
+const logPaths = require('../lib/log-paths');
+const log = require('../lib/logger')('score-retry', { logFile: logPaths.daily('retry-unscored') });
 
 const DEFAULT_LIMIT = 25;
 

@@ -25,7 +25,8 @@ const { callGemini, MODEL } = require('./lib/gemini');
 const { GEMINI_DAILY_LIMIT } = require('./config/constants');
 const { classifyComplexity } = require('./lib/complexity');
 const { run: autoApply } = require('./lib/auto-applier');
-const log = require('./lib/logger')('pipeline');
+const logPaths = require('./lib/log-paths');
+const log = require('./lib/logger')('pipeline', { logFile: logPaths.daily('pipeline') });
 
 async function generateSummary(newJobs) {
   if (!newJobs.length) {

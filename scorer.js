@@ -17,6 +17,7 @@ const fs = require('fs');
 const path = require('path');
 
 const { MAX_DESCRIPTION_LENGTH, MAX_TRANSCRIPT_LENGTH } = require('./config/constants');
+const createLogger = require('./lib/logger');
 const { baseDir } = require('./config/paths');
 const { callGemini } = require('./lib/gemini');
 
@@ -180,6 +181,9 @@ Respond in 2-4 plain sentences. No bullet points, no headers.`;
 // ---------------------------------------------------------------------------
 
 if (require.main === module) {
+  const logPaths = require('./lib/log-paths');
+  const log = createLogger('scorer', { logFile: logPaths.daily('scorer') });
+
   let raw = '';
   process.stdin.setEncoding('utf8');
   process.stdin.on('data', (chunk) => { raw += chunk; });
@@ -188,12 +192,12 @@ if (require.main === module) {
     try {
       jobs = JSON.parse(raw);
     } catch (err) {
-      process.stderr.write(`[scorer] Could not parse stdin JSON: ${err.message}\n`);
+      log.error('Could not parse stdin JSON', { error: err.message });
       process.exit(1);
     }
 
     if (!Array.isArray(jobs)) {
-      process.stderr.write('[scorer] Expected a JSON array of jobs on stdin.\n');
+      log.error('Expected a JSON array of jobs on stdin');
       process.exit(1);
     }
 
@@ -202,9 +206,9 @@ if (require.main === module) {
       try {
         const { score, reasoning } = await scoreJob(job);
         results.push({ ...job, score, reasoning });
-        process.stderr.write(`[scorer] ${job.company} — "${job.title}": ${score}/10\n`);
+        log.info('Scored', { company: job.company, title: job.title, score });
       } catch (err) {
-        process.stderr.write(`[scorer] Error scoring ${job.title}: ${err.message}\n`);
+        log.error('Score failed', { title: job.title, error: err.message });
         results.push({ ...job, score: null, reasoning: `Error: ${err.message}` });
       }
     }

@@ -13,6 +13,8 @@ const path = require('path');
 const Database = require('better-sqlite3');
 const { callGemini } = require('../lib/gemini');
 const { loadCanonicalClusters, saveCanonicalClusters, buildClusterRule } = require('../lib/canonical-clusters');
+const logPaths = require('../lib/log-paths');
+const log = require('../lib/logger')('market-research', { logFile: logPaths.daily('market-research') });
 
 const PROFILE_DIR = process.env.JOB_PROFILE_DIR || path.join(__dirname, '..', 'profiles', 'example');
 const DB_PATH = process.env.JOB_DB_PATH || path.join(PROFILE_DIR, 'jobs.db');
@@ -33,7 +35,7 @@ async function main() {
   const cache = loadCache();
   if (cache && cache.generatedAt && Date.now() - cache.generatedAt < CACHE_TTL_MS) {
     const ageHours = ((Date.now() - cache.generatedAt) / 3600000).toFixed(1);
-    console.log(`[market-research] Cache is ${ageHours}h old (< 23h), skipping.`);
+    log.info('Cache fresh, skipping', { ageHours: Number(ageHours) });
     return;
   }
 
@@ -49,7 +51,7 @@ async function main() {
   db.close();
 
   if (jobs.length === 0) {
-    console.log('[market-research] No jobs with descriptions found, skipping.');
+    log.info('No jobs with descriptions found, skipping');
     return;
   }
 
@@ -57,9 +59,9 @@ async function main() {
   const canonicalClusters = loadCanonicalClusters(PROFILE_DIR);
 
   if (canonicalClusters) {
-    console.log(`[market-research] Using ${canonicalClusters.length} canonical clusters: ${canonicalClusters.map(c => c.name).join(', ')}`);
+    log.info('Using canonical clusters', { count: canonicalClusters.length, names: canonicalClusters.map(c => c.name).join(', ') });
   } else {
-    console.log('[market-research] No canonical clusters found — will establish on this run.');
+    log.info('No canonical clusters found, will establish on this run');
   }
 
   const jdBlock = jobs.map((j, i) =>
@@ -121,7 +123,7 @@ ${buildClusterRule(canonicalClusters, jobs.length)}
 - emerging_high_score: Look specifically at JDs with score >= 9. Find terms, concepts, or technologies that appear in those high-score JDs but are rare or absent in lower-scored JDs. These are signals of what employers most value in 2026. Up to 8 terms, sorted by job_count desc. term = the keyword/concept, job_count = how many score-9+ JDs contain it, note = 1 sentence on why it signals value.
 - All counts and pcts must be real numbers based on actual analysis of the JDs provided.`;
 
-  console.log(`[market-research] Running analysis on ${jobs.length} jobs...`);
+  log.info('Running analysis', { jobs: jobs.length });
 
   const raw = await callGemini(prompt, 3, 5000);
   const cleaned = raw.replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/i, '').trim();
@@ -129,16 +131,16 @@ ${buildClusterRule(canonicalClusters, jobs.length)}
 
   if (!canonicalClusters && data.skill_clusters && data.skill_clusters.length > 0) {
     const saved = saveCanonicalClusters(PROFILE_DIR, data.skill_clusters);
-    console.log(`[market-research] Established canonical clusters: ${saved.map(c => c.name).join(', ')}`);
+    log.info('Established canonical clusters', { names: saved.map(c => c.name).join(', ') });
   }
 
   const result = { generatedAt: Date.now(), jobCount: jobs.length, data };
   fs.writeFileSync(CACHE_PATH, JSON.stringify(result, null, 2));
 
-  console.log(`[market-research] Done. Analyzed ${jobs.length} jobs, cache written to ${CACHE_PATH}`);
+  log.info('Done', { analyzed: jobs.length, cache: CACHE_PATH });
 }
 
 main().catch(err => {
-  console.error('[market-research] Error:', err.message);
+  log.error('Fatal', { error: err.message });
   process.exit(1);
 });
