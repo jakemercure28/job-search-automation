@@ -41,22 +41,30 @@ function isRecent(dateVal) {
   return Date.now() - ts <= MAX_AGE_DAYS * MS_PER_DAY;
 }
 
+function timed(label, fn) {
+  const start = Date.now();
+  return fn().then(
+    (v) => { log.info('Scraper done', { label, ms: Date.now() - start }); return v; },
+    (e) => { log.warn('Scraper failed', { label, ms: Date.now() - start, error: e.message }); throw e; }
+  );
+}
+
 async function scrapeAll() {
   log.info('Starting scrape across all platforms');
 
   const [greenhouse, lever, workable, wellfound, remoteok, jobicy, arbeitnow, wwr, ashby, workday, builtin, rippling] = await Promise.allSettled([
-    scrapeGreenhouse(),
-    scrapeLever(),
-    scrapeWorkable(),
-    scrapeWellfound(),
-    scrapeRemoteOK(),
-    scrapeJobicy(),
-    scrapeArbeitnow(),
-    scrapeWWR(),
-    scrapeAshby(),
-    scrapeWorkday(),
-    scrapeBuiltin(),
-    scrapeRippling(),
+    timed('greenhouse', scrapeGreenhouse),
+    timed('lever', scrapeLever),
+    timed('workable', scrapeWorkable),
+    timed('wellfound', scrapeWellfound),
+    timed('remoteok', scrapeRemoteOK),
+    timed('jobicy', scrapeJobicy),
+    timed('arbeitnow', scrapeArbeitnow),
+    timed('wwr', scrapeWWR),
+    timed('ashby', scrapeAshby),
+    timed('workday', scrapeWorkday),
+    timed('builtin', scrapeBuiltin),
+    timed('rippling', scrapeRippling),
   ]);
 
   const results = [
@@ -99,7 +107,7 @@ async function scrapeAll() {
 // Run standalone
 if (require.main === module) {
   scrapeAll()
-    .then((jobs) => log.info('Scraped jobs written to jobs.json', { count: jobs.length }))
+    .then((jobs) => { log.info('Scraped jobs written to jobs.json', { count: jobs.length }); process.exit(0); })
     .catch((err) => {
       log.error('Fatal error', { error: err.message });
       process.exit(1);
