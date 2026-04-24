@@ -17,17 +17,19 @@ const CHROME_PATH = process.env.PUPPETEER_EXECUTABLE_PATH || '/Applications/Goog
 const profileDir = process.env.JOB_PROFILE_DIR || path.join(__dirname, '..', 'profiles', 'example');
 const RESUME_SCALE = parseFloat(process.env.RESUME_SCALE) || 0.96;
 
-// Variants to generate: [inputMd, outputPdf]
-const VARIANTS = [
-  ['resume.md',       'resume.pdf'],
-  ['resume-devops.md','resume-devops.pdf'],
-  ['resume-ai.md',    'resume-ai.pdf'],
-].map(([md, pdf]) => [path.join(profileDir, md), path.join(profileDir, pdf)])
- .filter(([md]) => fs.existsSync(md));
+function resumeVariantsForProfile(dir = profileDir) {
+  return [
+    ['resume.md',       'resume.pdf'],
+    ['resume-devops.md','resume-devops.pdf'],
+    ['resume-ai.md',    'resume-ai.pdf'],
+  ].map(([md, pdf]) => [path.join(dir, md), path.join(dir, pdf)])
+   .filter(([md]) => fs.existsSync(md));
+}
 
-// Load optional profile-specific CSS overrides (profiles/<name>/resume.css)
-const profileCssPath = path.join(profileDir, 'resume.css');
-const PROFILE_CSS = fs.existsSync(profileCssPath) ? fs.readFileSync(profileCssPath, 'utf8') : '';
+function loadProfileCss(dir = profileDir) {
+  const profileCssPath = path.join(dir, 'resume.css');
+  return fs.existsSync(profileCssPath) ? fs.readFileSync(profileCssPath, 'utf8') : '';
+}
 
 // ---------------------------------------------------------------------------
 // Parse resume.md into structured sections
@@ -139,7 +141,7 @@ function inlineMd(text) {
 // Build HTML
 // ---------------------------------------------------------------------------
 
-function buildHtml(resume) {
+function buildHtml(resume, profileCss = loadProfileCss()) {
   let html = `<!DOCTYPE html>
 <html>
 <head>
@@ -238,7 +240,7 @@ function buildHtml(resume) {
     font-weight: bold;
   }
 
-${PROFILE_CSS}
+${profileCss}
 </style>
 </head>
 <body>
@@ -296,10 +298,11 @@ async function main() {
   });
 
   try {
-    for (const [RESUME_PATH, OUTPUT_PATH] of VARIANTS) {
+    const profileCss = loadProfileCss(profileDir);
+    for (const [RESUME_PATH, OUTPUT_PATH] of resumeVariantsForProfile(profileDir)) {
       const md = fs.readFileSync(RESUME_PATH, 'utf8');
       const resume = parseResume(md);
-      const html = buildHtml(resume);
+      const html = buildHtml(resume, profileCss);
 
       const page = await browser.newPage();
       await page.setContent(html, { waitUntil: 'networkidle0' });
@@ -317,7 +320,44 @@ async function main() {
   }
 }
 
-main().catch(err => {
-  console.error('Error generating PDF:', err.message);
-  process.exit(1);
-});
+async function writeResumePdf({ html, outputPath, scale = RESUME_SCALE, chromePath = CHROME_PATH } = {}) {
+  const browser = await puppeteer.launch({
+    executablePath: chromePath,
+    headless: true,
+    args: ['--no-sandbox', '--disable-setuid-sandbox'],
+  });
+
+  try {
+    const page = await browser.newPage();
+    await page.setContent(html, { waitUntil: 'networkidle0' });
+    await page.pdf({
+      path: outputPath,
+      format: 'Letter',
+      printBackground: false,
+      scale,
+    });
+    await page.close();
+  } finally {
+    await browser.close();
+  }
+}
+
+function renderResumeMarkdownToHtml(markdown, { profileDir: dir = profileDir } = {}) {
+  return buildHtml(parseResume(markdown), loadProfileCss(dir));
+}
+
+if (require.main === module) {
+  main().catch(err => {
+    console.error('Error generating PDF:', err.message);
+    process.exit(1);
+  });
+}
+
+module.exports = {
+  buildHtml,
+  loadProfileCss,
+  parseResume,
+  renderResumeMarkdownToHtml,
+  resumeVariantsForProfile,
+  writeResumePdf,
+};

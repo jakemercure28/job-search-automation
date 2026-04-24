@@ -39,7 +39,7 @@ describe('auto-apply receipts', () => {
     });
   });
 
-  it('renders the consolidated auto applies page with cards and artifact links', () => {
+  it('renders the consolidated apply receipts page with cards and artifact links', () => {
     const html = renderAutoApplies({
       autoApplySummary: {
         total: 1,
@@ -71,7 +71,7 @@ describe('auto-apply receipts', () => {
       autoApplyFilters: {},
     });
 
-    assert.match(html, /Auto Applies/);
+    assert.match(html, /Apply Receipts/);
     assert.match(html, /Retry Needed/);
     assert.match(html, /Manual Review/);
     assert.match(html, /Failure Class/);

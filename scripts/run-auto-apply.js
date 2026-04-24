@@ -19,7 +19,7 @@ function loadAutoApplyConfig() {
 
 async function run() {
   loadDashboardEnv(path.join(__dirname, '..'));
-  log.error('Unattended auto-apply has been removed. Use `npm run apply -- --job=<job-id>` instead.');
+  log.error('Unattended auto-apply has been removed. Use `npm run apply -- prep --job=<job-id>` and submit manually.');
   process.exitCode = 1;
 }
 

@@ -1,6 +1,6 @@
 # Claude Instructions
 
-This repo is a personal job-search automation pipeline. It scrapes job boards, scores listings with an LLM, serves a local dashboard, and can auto-apply to simple applications.
+This repo is a personal job-search pipeline. It scrapes job boards, scores listings with an LLM, serves a local dashboard, generates manual application prep, and creates tailored resumes. Final application submission is human-controlled.
 
 ## Context system
 

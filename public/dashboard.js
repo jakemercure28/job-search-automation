@@ -126,11 +126,11 @@ function ensureJobBadges(card) {
   return badges;
 }
 
-function setAutoApplyBadge(card, className, label, title) {
+function setJobBadge(card, className, label, title) {
   const badges = ensureJobBadges(card);
   if (!badges) return;
 
-  let badge = badges.querySelector('.auto-applied, .auto-failed, .auto-ready');
+  let badge = badges.querySelector(`.${className}`);
   if (!badge) {
     badge = document.createElement('span');
     badges.appendChild(badge);
@@ -227,10 +227,10 @@ async function archiveJob(id, btn) {
   }
 }
 
-async function autoApplyJob(id, btn) {
+async function tailorResume(id, btn) {
   btn.disabled = true;
-  btn.textContent = 'Applying...';
-  const res = await fetch('/auto-apply', {
+  btn.textContent = 'Tailoring...';
+  const res = await fetch('/tailored-resume', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ id }),
@@ -238,16 +238,18 @@ async function autoApplyJob(id, btn) {
   if (res.ok) {
     const data = await res.json();
     const card = btn.closest('.job-card');
-    if (card) setAutoApplyBadge(card, 'auto-applied', 'auto', 'Auto-apply succeeded');
-    showToast(data.securityCode ? `Applied (code: ${data.securityCode})` : 'Applied', '#16a34a');
-    btn.remove();
+    if (card) setJobBadge(card, 'auto-ready', 'resume', 'Tailored resume generated');
+    showToast('Tailored resume ready', '#16a34a');
+    if (data.resumeUrl) window.open(data.resumeUrl, '_blank', 'noopener,noreferrer');
+    btn.textContent = 'Tailor Resume';
+    btn.disabled = false;
   } else {
     const data = await res.json().catch(() => ({}));
     const card = btn.closest('.job-card');
-    if (card) setAutoApplyBadge(card, 'auto-failed', 'autox', data.error || 'Auto-apply failed');
-    showToast(`Apply failed: ${data.error || res.statusText}`, '#dc2626');
+    if (card) setJobBadge(card, 'auto-failed', 'resume!', data.error || 'Tailored resume failed');
+    showToast(`Resume failed: ${data.error || res.statusText}`, '#dc2626');
     btn.disabled = false;
-    btn.textContent = 'Apply Now';
+    btn.textContent = 'Tailor Resume';
   }
 }
 

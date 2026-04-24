@@ -52,8 +52,7 @@ for profile_dir in profiles/*/; do
     echo "[run-daily] Retrying any pending unscored jobs for $profile..."
     node scripts/retry-unscored.js --limit=25 || true
 
-    echo "[run-daily] Running auto-apply for $profile..."
-    node scripts/run-auto-apply.js || true
+    echo "[run-daily] Manual apply workflow ready for $profile. Use: npm run apply -- list"
   fi
 done
 

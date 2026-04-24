@@ -1,6 +1,6 @@
 # Job Search Pipeline
 
-An end-to-end automation pipeline for a technical job search. Scrapes 11 ATS platforms, scores each listing with an LLM against your resume and context files, classifies applications by complexity, auto-fills simple ones, and serves a local dashboard for human review and pipeline tracking. IMAP integration syncs rejection emails back into the DB automatically.
+An end-to-end automation pipeline for a technical job search. Scrapes 11 ATS platforms, scores each listing with an LLM against your resume and context files, generates manual application prep and tailored resumes, and serves a local dashboard for human review and pipeline tracking. IMAP integration syncs rejection emails back into the DB automatically.
 
 Designed for a single applicant (or a small group sharing one machine), not as a SaaS. The point is to get the benefits of a structured pipeline without spinning up infrastructure for it.
 
@@ -65,10 +65,10 @@ Designed for a single applicant (or a small group sharing one machine), not as a
                            +------------------+--------------------+
                            v                                       v
                  +------------------+                 +---------------------+
-                 | auto-applier     |                 | application-prep    |
-                 | (Greenhouse /    |                 | (complex forms,     |
-                 |  Lever / Ashby)  |                 |  LLM-drafted        |
-                 |                  |                 |  answers)           |
+                 | tailored-resume  |                 | application-prep    |
+                 | (per-job MD /    |                 | (manual answers,    |
+                 |  HTML / PDF)     |                 |  bookmarklet, JSON) |
+                 |                  |                 |                     |
                  +------------------+                 +---------------------+
                            |                                       |
                            +-----------------+---------------------+
@@ -84,8 +84,8 @@ Designed for a single applicant (or a small group sharing one machine), not as a
 
 - **Node.js 18+** (CommonJS), zero build step
 - **better-sqlite3** for per-profile job storage
-- **puppeteer-core + puppeteer-extra-plugin-stealth** for ATS form submission
-- **Google Gemini Flash** for scoring, complexity classification, and application prep
+- **puppeteer-core + puppeteer-extra-plugin-stealth** for ATS inspection and resume PDF rendering
+- **Google Gemini Flash** for scoring, complexity classification, application prep, and tailored resumes
 - **imapflow** for inbox rejection sync
 - **Server-rendered HTML** dashboard with vanilla client-side JS
 
@@ -101,7 +101,11 @@ Gemini scores each job 1-10 along five dimensions (stack match, seniority, comp,
 
 ### Application complexity classifier
 
-Each scored job is tagged `simple` or `complex`. Simple jobs go to the headless-browser auto-applier. Complex jobs surface in the dashboard with LLM-drafted answers ready for human review.
+Each scored job is tagged `simple` or `complex` so you can triage apply effort. The active workflow is manual: generate prep, generate a tailored resume, open the job URL, review everything, and submit yourself.
+
+### Tailored resumes
+
+For any job, generate a job-specific resume from the active profile's `resume.md`, optional resume variants, `context.md`, and `career-detail.md`. Artifacts are stored under `JOB_PROFILE_DIR/tailored-resumes/<job-id>/` as Markdown, HTML, PDF, and metadata JSON.
 
 ### Voice-aware LLM drafting
 
@@ -189,7 +193,10 @@ npm run pipeline           # pipeline only (uses current jobs.json)
 npm run score              # rescore unscored jobs
 npm run retry-unscored     # retry jobs that failed scoring
 npm run sync-rejections    # manual one-shot of rejection email sync
-npm run auto-apply         # run unattended apply loop (respects AUTO_APPLY_ENABLED)
+npm run apply -- list      # list scored jobs for manual application work
+npm run apply -- prep --job=<id>
+npm run apply -- resume --job=<id>
+npm run apply -- show --job=<id>
 npm run resume             # regenerate resume.pdf from resume.md
 npm run build:bookmarklet  # build the auto-fill bookmarklet from your env
 npm test                   # run the node test suite
@@ -227,12 +234,12 @@ Create a launchd LaunchAgent pointing at `scripts/start-dashboard.sh` with `Keep
 
 **New filter tab:** add to `FILTER_DEFS` in `lib/html/helpers.js`, add a corresponding query in `filterQueries` in `lib/dashboard-routes.js`.
 
-**New auto-apply platform:** add `lib/ats-appliers/<name>.js` exporting `submit<Name>()`. Wire it into `lib/auto-applier.js`.
+**Assisted apply internals:** `lib/ats-appliers/*` and `lib/auto-applier.js` are preserved as dormant infrastructure for future reviewed or semi-automatic workflows. They are not part of the active daily pipeline or dashboard actions.
 
 **Scoring calibration:** edit the prompt in `scorer.js`. Deterministic caps live in `scoreJob()`; use those for "never over-score this pattern" rules the LLM keeps rationalizing past.
 
 ## Disclaimer
 
-This is a personal project. Scrapers hit public job-board endpoints and respect typical rate-limit and User-Agent conventions. Before running at scale, review each site's Terms of Service. Automated form submission against ATS platforms can trigger spam filtering; `AUTO_APPLY_PLATFORM_BLOCKLIST` exists specifically to skip platforms where this has been an issue.
+This is a personal project. Scrapers hit public job-board endpoints and respect typical rate-limit and User-Agent conventions. Before running at scale, review each site's Terms of Service. The active workflow keeps final application submission under human control.
 
 Use responsibly. Not a guarantee of interviews, offers, or anything else.

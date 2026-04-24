@@ -69,7 +69,7 @@ describe('renderJobTable', () => {
     assert.match(html, /onclick="location='\/\?filter=all&sort=date&level=1&q=platform\+aws&minScore=8'"/);
   });
 
-  it('shows auto result badges and keeps Apply Now available on supported ATS jobs', () => {
+  it('shows historical auto result badges and exposes manual prep/resume actions only', () => {
     const html = renderJobTable([
       {
         id: 'job-3',
@@ -84,6 +84,7 @@ describe('renderJobTable', () => {
         apply_complexity: 'complex',
         auto_apply_status: 'failed',
         auto_apply_error: 'Required fields still empty before submit',
+        tailored_resume_status: 'ready',
       },
       {
         id: 'job-4',
@@ -101,7 +102,10 @@ describe('renderJobTable', () => {
 
     assert.match(html, /Auto-apply failed: Required fields still empty before submit/);
     assert.match(html, /class="complexity-badge auto-failed"[^>]*>autox<\/span>/);
-    assert.equal((html.match(/Apply Now/g) || []).length, 2);
+    assert.match(html, /Manual Apply Prep/);
+    assert.equal((html.match(/Tailor Resume/g) || []).length, 2);
+    assert.equal((html.match(/View Tailored Resume/g) || []).length, 1);
+    assert.doesNotMatch(html, /Apply Now/);
     assert.doesNotMatch(html, />simple</);
     assert.doesNotMatch(html, />complex</);
   });
