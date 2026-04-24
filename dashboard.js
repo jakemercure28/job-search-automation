@@ -35,13 +35,14 @@ const {
   handlePrepareApplication,
   handleJobApplicationData,
   handleJobBookmarkletScript,
+  handleTailoredResume,
+  handleGenerateTailoredResume,
   handleAutoApplyAttempt,
   handleAutoApplyArtifact,
   handleDashboardPage,
   handleHelpPage,
   handleMarketResearch,
   handleDismissSlugBanner,
-  handleAutoApply,
 } = require('./lib/dashboard-routes');
 
 const PORT = DASHBOARD_PORT;
@@ -77,11 +78,12 @@ const routes = {
   'POST /job-application-prep': handlePrepareApplication,
   'GET /job-application-data': handleJobApplicationData,
   'GET /job-bookmarklet.js': handleJobBookmarkletScript,
+  'GET /tailored-resume':    handleTailoredResume,
+  'POST /tailored-resume':   handleGenerateTailoredResume,
   'GET /auto-apply-attempt':  handleAutoApplyAttempt,
   'GET /auto-apply-artifact': handleAutoApplyArtifact,
   'POST /market-research':   handleMarketResearch,
   'POST /dismiss-slug-banner': handleDismissSlugBanner,
-  'POST /auto-apply':        handleAutoApply,
   'GET /help':               handleHelpPage,
   'GET /':                   handleDashboardPage,
 };
