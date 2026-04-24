@@ -233,8 +233,29 @@ async function checkGenericUrl(job) {
 
 // ── main ────────────────────────────────────────────────────────────────────
 
+const CHECK_CONCURRENCY = 10;
+
+async function checkJob(job) {
+  const urlStr = job.url || '';
+  const isGHUrl = urlStr.includes('greenhouse.io') || urlStr.includes('careerpuck.com');
+  const isAshbyUrl = urlStr.includes('ashbyhq.com');
+  const isLeverUrl = urlStr.includes('lever.co');
+  const isRipplingUrl = urlStr.includes('ats.rippling.com');
+
+  if (job.platform === 'Greenhouse' || (isGHUrl && job.platform !== 'Greenhouse')) {
+    return checkGreenhouse({ ...job, platform: 'Greenhouse' });
+  } else if (job.platform === 'Ashby' || job.platform === 'ashby' || isAshbyUrl) {
+    return checkAshby({ ...job, platform: 'Ashby' });
+  } else if (job.platform === 'Lever' || isLeverUrl) {
+    return checkLever({ ...job, platform: 'Lever' });
+  } else if (job.platform === 'Rippling' || isRipplingUrl) {
+    return checkRippling(job);
+  } else {
+    return checkGenericUrl(job);
+  }
+}
+
 async function main() {
-  // Check all non-archived, non-terminal jobs
   const jobs = db.prepare(`
     SELECT id, company, title, platform, url, stage
     FROM jobs
@@ -249,44 +270,31 @@ async function main() {
   let checked = 0;
   let skipped = 0;
 
-  for (const job of jobs) {
-    let result = null;
+  for (let i = 0; i < jobs.length; i += CHECK_CONCURRENCY) {
+    const batch = jobs.slice(i, i + CHECK_CONCURRENCY);
+    const results = await Promise.allSettled(batch.map(job => checkJob(job)));
 
-    // Route by platform — but also check URL for cross-platform cases
-    // (e.g. Built In jobs that link directly to Greenhouse/Ashby/Lever)
-    const urlStr = job.url || '';
-    const isGHUrl = urlStr.includes('greenhouse.io') || urlStr.includes('careerpuck.com');
-    const isAshbyUrl = urlStr.includes('ashbyhq.com');
-    const isLeverUrl = urlStr.includes('lever.co');
-    const isRipplingUrl = urlStr.includes('ats.rippling.com');
+    for (let j = 0; j < batch.length; j++) {
+      const job = batch[j];
+      const r = results[j];
+      const result = r.status === 'fulfilled' ? r.value : null;
 
-    if (job.platform === 'Greenhouse' || (isGHUrl && job.platform !== 'Greenhouse')) {
-      result = await checkGreenhouse({ ...job, platform: 'Greenhouse' });
-    } else if (job.platform === 'Ashby' || job.platform === 'ashby' || isAshbyUrl) {
-      result = await checkAshby({ ...job, platform: 'Ashby' });
-    } else if (job.platform === 'Lever' || isLeverUrl) {
-      result = await checkLever({ ...job, platform: 'Lever' });
-    } else if (job.platform === 'Rippling' || isRipplingUrl) {
-      result = await checkRippling(job);
-    } else {
-      result = await checkGenericUrl(job);
+      if (result === null) {
+        skipped++;
+      } else if (result === 'closed') {
+        db.prepare(`
+          UPDATE jobs SET stage='closed', status='archived', updated_at=datetime('now') WHERE id=?
+        `).run(job.id);
+        logEvent(db, job.id, 'stage_change', job.stage || null, 'closed');
+        console.log(`  [closed] ${job.company} / ${job.title} (${job.platform})`);
+        closed++;
+        checked++;
+      } else {
+        checked++;
+      }
     }
 
-    if (result === null) {
-      skipped++;
-    } else if (result === 'closed') {
-      db.prepare(`
-        UPDATE jobs SET stage='closed', status='archived', updated_at=datetime('now') WHERE id=?
-      `).run(job.id);
-      logEvent(db, job.id, 'stage_change', job.stage || null, 'closed');
-      console.log(`  [closed] ${job.company} / ${job.title} (${job.platform})`);
-      closed++;
-      checked++;
-    } else {
-      checked++;
-    }
-
-    await sleep(DELAY_MS);
+    if (i + CHECK_CONCURRENCY < jobs.length) await sleep(DELAY_MS);
   }
 
   console.log(`Done. checked=${checked} closed=${closed} skipped=${skipped}`);
