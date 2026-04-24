@@ -13,8 +13,10 @@ const { loadDashboardEnv } = require('./lib/env');
 
 loadDashboardEnv(__dirname);
 
+const path = require('path');
 const { jobsJsonPath } = require('./config/paths');
-const log = require('./lib/logger')('scraper');
+const logDate = new Date().toISOString().slice(0, 10).replace(/-/g, '');
+const log = require('./lib/logger')('scraper', { logFile: path.join(__dirname, 'logs', `scraper-${logDate}.log`) });
 const { validateJobs } = require('./lib/validate');
 const { scrapeGreenhouse } = require('./scrapers/greenhouse');
 const { scrapeLever }      = require('./scrapers/lever');
