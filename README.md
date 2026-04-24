@@ -197,15 +197,29 @@ npm test                   # run the node test suite
 
 ## Scheduling
 
-Suggested cron entries:
+### Refresh pipeline (recommended)
+
+`scripts/refresh-if-dashboard.sh` runs the full pipeline — scrape → score → check descriptions → check closed jobs → market research → rejection email sync — but only when the dashboard is already running on its port. Safe to fire frequently; it skips silently when you're not using the dashboard.
+
+Add to crontab (`crontab -e`):
 
 ```
-7 8 * * *    cd /path/to/job-search && bash scripts/run-daily.sh      >> /tmp/job-search.log 2>&1
-7 14 * * *   cd /path/to/job-search && bash scripts/run-daily.sh      >> /tmp/job-search.log 2>&1
-30 * * * *   cd /path/to/job-search && bash scripts/run-score-retry.sh >> /tmp/job-search-score-retry.log 2>&1
+*/30 * * * * /path/to/job-search/scripts/refresh-if-dashboard.sh
 ```
 
-Under launchd on macOS, a `KeepAlive`-enabled LaunchAgent running `scripts/start-dashboard.sh` keeps the UI alive across reboots.
+Output is appended to `logs/refresh.log` (created automatically).
+
+### Daily scrape (optional, runs regardless of dashboard)
+
+If you want a guaranteed morning scrape even when the dashboard is closed:
+
+```
+7 8 * * *   cd /path/to/job-search && bash scripts/run-daily.sh >> /tmp/job-search.log 2>&1
+```
+
+### macOS: keep the dashboard alive across reboots
+
+Create a launchd LaunchAgent pointing at `scripts/start-dashboard.sh` with `KeepAlive` enabled. The dashboard will start on login and restart if it crashes, making the cron guard above useful 24/7.
 
 ## Extending
 
