@@ -11,7 +11,7 @@ Assume one active local profile, resolved from `.env`:
 - `JOB_DB_PATH`
 - `DASHBOARD_PORT`
 
-Do not rely on SSH, an iMac, cron, or an always-on dashboard as the normal path.
+Do not rely on SSH, cron, or an always-on dashboard as the normal path.
 
 ## Daily commands
 

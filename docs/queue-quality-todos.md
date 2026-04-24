@@ -31,4 +31,4 @@
 ## Later
 - Auto-close obviously stale jobs during daily maintenance, not only during submit attempts.
 - Add a review queue for “manual review required” jobs so Codex or Claude can generate answers deliberately before a submit step.
-- Define a shared CLI contract for laptop-driven Codex runs and direct-on-iMac Claude runs so both tools operate on the same receipt and prep model.
+- Define a shared CLI contract for Codex and Claude Code runs so both tools operate on the same receipt and prep model.
