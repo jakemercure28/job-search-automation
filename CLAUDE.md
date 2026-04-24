@@ -54,6 +54,8 @@ All commands read `JOB_PROFILE_DIR` and `JOB_DB_PATH` from `.env` to find the ac
 
 Prefer small, reviewable commits with clear messages. Stage only files relevant to the task.
 
+Commit message format: `<type>: <brief summary>` — types: `feat`, `fix`, `refactor`, `test`, `docs`, `chore`.
+
 **Never commit:**
 - `jobs.json` (auto-generated)
 - `jobs.db` (per-profile SQLite)
@@ -61,3 +63,5 @@ Prefer small, reviewable commits with clear messages. Stage only files relevant 
 - Auto-generated build artifacts (`*.pdf`, `public/bookmarklet.js`)
 - `market-research-cache.json`, `slug-health.json`, or any `*-cache.json`
 - Personal content under `.context/` or `profiles/<your-name>/` (both gitignored)
+
+**Auto-push and PR:** A Stop hook (`.claude/hooks/auto-pr.sh`) runs at the end of every session. If the current branch has commits ahead of `main`, it pushes and opens a PR automatically — or reports the existing PR URL if one is already open. No manual `/ship` needed.
