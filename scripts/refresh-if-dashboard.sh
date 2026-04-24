@@ -12,8 +12,8 @@ mkdir -p "$REPO/logs"
 
 NOW() { date -u +"%Y-%m-%dT%H:%M:%SZ"; }
 
-if ! lsof -ti :"$PORT" > /dev/null 2>&1; then
-  echo "$(NOW()) [refresh-if-dashboard] dashboard not running on port $PORT — skipping" >> "$LOG"
+if ! nc -z localhost "$PORT" 2>/dev/null; then
+  echo "$(NOW()) [refresh-if-dashboard] dashboard not reachable on port $PORT — skipping" >> "$LOG"
   exit 0
 fi
 

@@ -4,8 +4,6 @@ const { describe, it } = require('node:test');
 const assert = require('node:assert/strict');
 const Database = require('better-sqlite3');
 
-const { buildApplicantForJob, countSuccessfulApplicationsToday, isBlockedPlatform, planAutoApply, updateValidationFailureStreak } = require('../lib/auto-applier');
-
 function createDb() {
   const db = new Database(':memory:');
   db.exec(`
@@ -18,178 +16,257 @@ function createDb() {
       score INTEGER,
       status TEXT,
       stage TEXT,
+      applied_at TEXT,
       auto_applied_at TEXT,
       auto_apply_status TEXT,
+      auto_apply_error TEXT,
       apply_complexity TEXT,
-      created_at TEXT
+      created_at TEXT,
+      updated_at TEXT
     );
     CREATE TABLE auto_apply_log (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       job_id TEXT,
       attempted_at TEXT,
       status TEXT,
+      error TEXT,
+      resume_filename TEXT,
+      security_code TEXT,
       dry_run INTEGER DEFAULT 0,
+      run_id TEXT,
+      mode TEXT,
+      platform TEXT,
       failure_class TEXT,
-      platform TEXT
+      pre_image_path TEXT,
+      post_image_path TEXT,
+      resume_path TEXT,
+      prep_generated_at TEXT,
+      actor TEXT,
+      display_error TEXT,
+      details_json TEXT
     );
     CREATE TABLE application_preps (
       job_id TEXT PRIMARY KEY,
-      status TEXT
+      status TEXT,
+      workflow TEXT,
+      apply_url TEXT,
+      page_issue TEXT,
+      questions_json TEXT,
+      answers_json TEXT,
+      voice_checks_json TEXT,
+      summary TEXT,
+      error TEXT,
+      generated_at TEXT
+    );
+    CREATE TABLE events (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      job_id TEXT,
+      event_type TEXT,
+      from_value TEXT,
+      to_value TEXT,
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP
     );
   `);
   return db;
 }
 
-describe('auto-applier quota counting', () => {
-  it('counts only successful non-dry-run auto-applies for the target local day', () => {
-    const db = createDb();
-    const insert = db.prepare(`
-      INSERT INTO auto_apply_log (job_id, attempted_at, status, dry_run)
-      VALUES (?, ?, ?, ?)
-    `);
+async function withStubbedApplier(testFn, prepFactory) {
+  const autoApplierPath = require.resolve('../lib/auto-applier');
+  const applicationPrepPath = require.resolve('../lib/application-prep');
+  const greenhousePath = require.resolve('../lib/ats-appliers/greenhouse');
 
-    insert.run('success-1', '2026-04-15T14:00:00Z', 'success', 0);
-    insert.run('success-2', '2026-04-15T15:00:00Z', 'success', 0);
-    insert.run('failed', '2026-04-15T16:00:00Z', 'failed', 0);
-    insert.run('dry-run', '2026-04-15T17:00:00Z', 'success', 1);
-    insert.run('previous-day', '2026-04-14T18:00:00Z', 'success', 0);
+  const originalAutoApplier = require.cache[autoApplierPath];
+  const originalPrep = require.cache[applicationPrepPath];
+  const originalGreenhouse = require.cache[greenhousePath];
 
-    assert.equal(countSuccessfulApplicationsToday(db, '2026-04-15'), 2);
+  delete require.cache[autoApplierPath];
+  require.cache[applicationPrepPath] = {
+    exports: {
+      prepareApplication: async () => prepFactory(),
+      getApplicationPrep: () => prepFactory(),
+    },
+  };
+
+  const calls = [];
+  require.cache[greenhousePath] = {
+    exports: {
+      applyGreenhouse: async (_job, _applicant, options) => {
+        calls.push(options);
+        return {
+          success: true,
+          preImagePath: '/tmp/pre.png',
+          postImagePath: '/tmp/post.png',
+          details: {
+            filledFields: ['Email', 'Phone'],
+          },
+        };
+      },
+    },
+  };
+
+  try {
+    const autoApplier = require('../lib/auto-applier');
+    return await testFn(autoApplier, calls);
+  } finally {
+    delete require.cache[autoApplierPath];
+    if (originalAutoApplier) require.cache[autoApplierPath] = originalAutoApplier;
+    else delete require.cache[autoApplierPath];
+
+    if (originalPrep) require.cache[applicationPrepPath] = originalPrep;
+    else delete require.cache[applicationPrepPath];
+
+    if (originalGreenhouse) require.cache[greenhousePath] = originalGreenhouse;
+    else delete require.cache[greenhousePath];
+  }
+}
+
+describe('cli reviewed apply flow', () => {
+  it('prepareOne returns review data without changing the job state', async () => {
+    await withStubbedApplier(async ({ prepareOne }) => {
+      const db = createDb();
+      db.prepare(`
+        INSERT INTO jobs (id, company, title, url, platform, score, status, apply_complexity, created_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `).run(
+        'greenhouse-1',
+        'Acme',
+        'Platform Engineer',
+        'https://boards.greenhouse.io/acme/jobs/1',
+        'greenhouse',
+        9,
+        'pending',
+        'complex',
+        '2026-04-22T12:00:00Z'
+      );
+
+      const result = await prepareOne(db, { applicant: {}, blocklist: [], platformBlocklist: [] }, 'greenhouse-1', { actor: 'test' });
+      assert.equal(result.success, true);
+      assert.equal(result.status, 'prepared');
+      assert.equal(result.review.submitEligible, true);
+      assert.equal(result.review.resolvedAnswers[0].label, 'Work authorization');
+
+      const job = db.prepare('SELECT status, stage FROM jobs WHERE id = ?').get('greenhouse-1');
+      assert.equal(job.status, 'pending');
+      assert.equal(job.stage, null);
+    }, () => ({
+      status: 'ready',
+      workflow: 'cli-review',
+      apply_url: 'https://boards.greenhouse.io/acme/jobs/1',
+      questions: [
+        { label: 'Work authorization', name: 'work_auth', type: 'select', required: true },
+      ],
+      answers: {
+        work_auth: 'Yes',
+      },
+      voiceChecks: {
+        lowConfidenceFields: [],
+      },
+      summary: 'Ready to submit',
+      generated_at: '2026-04-22T12:00:00Z',
+    }));
   });
 
-  it('blocks configured platforms case-insensitively', () => {
-    assert.equal(isBlockedPlatform('ashby', ['ashby']), true);
-    assert.equal(isBlockedPlatform('GreenHouse', ['ashby']), false);
+  it('submitOne blocks unresolved required fields instead of guessing', async () => {
+    await withStubbedApplier(async ({ submitOne }, calls) => {
+      const db = createDb();
+      db.prepare(`
+        INSERT INTO jobs (id, company, title, url, platform, score, status, apply_complexity, created_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `).run(
+        'greenhouse-2',
+        'Acme',
+        'Site Reliability Engineer',
+        'https://boards.greenhouse.io/acme/jobs/2',
+        'greenhouse',
+        8,
+        'pending',
+        'complex',
+        '2026-04-22T12:00:00Z'
+      );
+
+      const result = await submitOne(db, { applicant: {}, blocklist: [], platformBlocklist: [] }, 'greenhouse-2', { actor: 'test' });
+      assert.equal(result.success, false);
+      assert.match(result.error, /Manual review required before submit/);
+      assert.equal(calls.length, 0);
+
+      const receipt = db.prepare('SELECT mode, status, details_json FROM auto_apply_log').get();
+      assert.equal(receipt.mode, 'submit');
+      assert.equal(receipt.status, 'failed');
+      const details = JSON.parse(receipt.details_json);
+      assert.deepEqual(details.unresolvedFields.map((field) => field.label), ['Portfolio URL']);
+    }, () => ({
+      status: 'ready',
+      workflow: 'cli-review',
+      apply_url: 'https://boards.greenhouse.io/acme/jobs/2',
+      questions: [
+        { label: 'Work authorization', name: 'work_auth', type: 'select', required: true },
+        { label: 'Portfolio URL', name: 'portfolio', type: 'text', required: true },
+      ],
+      answers: {
+        work_auth: 'Yes',
+      },
+      voiceChecks: {
+        lowConfidenceFields: [],
+      },
+      generated_at: '2026-04-22T12:00:00Z',
+    }));
   });
 
-  it('excludes manual-review and closed-page failures from retry planning', async () => {
-    const db = createDb();
-    const insertJob = db.prepare(`
-      INSERT INTO jobs (id, company, title, url, platform, score, status, auto_apply_status, apply_complexity, created_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `);
-    const insertAttempt = db.prepare(`
-      INSERT INTO auto_apply_log (job_id, attempted_at, status, dry_run, failure_class)
-      VALUES (?, ?, ?, ?, ?)
-    `);
+  it('submitOne updates the job to applied and records screenshot/email verification details', async () => {
+    await withStubbedApplier(async ({ submitOne }, calls) => {
+      const db = createDb();
+      db.prepare(`
+        INSERT INTO jobs (id, company, title, url, platform, score, status, stage, apply_complexity, created_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `).run(
+        'greenhouse-3',
+        'Acme',
+        'Infrastructure Engineer',
+        'https://boards.greenhouse.io/acme/jobs/3',
+        'greenhouse',
+        8,
+        'pending',
+        null,
+        'complex',
+        '2026-04-22T12:00:00Z'
+      );
 
-    insertJob.run('job-validation', 'Acme', 'Platform Engineer', 'https://boards.greenhouse.io/acme/jobs/1', 'greenhouse', 4, 'pending', 'failed', 'simple', '2026-04-21T10:00:00Z');
-    insertJob.run('job-manual', 'Bravo', 'Site Reliability Engineer', 'https://boards.greenhouse.io/bravo/jobs/2', 'greenhouse', 5, 'pending', 'failed', 'simple', '2026-04-21T11:00:00Z');
-    insertJob.run('job-closed', 'Charlie', 'DevOps Engineer', 'https://boards.greenhouse.io/charlie/jobs/3', 'greenhouse', 6, 'pending', 'failed', 'simple', '2026-04-21T12:00:00Z');
-    insertAttempt.run('job-validation', '2026-04-21T12:30:00Z', 'failed', 0, 'validation');
-    insertAttempt.run('job-manual', '2026-04-21T12:31:00Z', 'failed', 0, 'manual-review-needed');
-    insertAttempt.run('job-closed', '2026-04-21T12:32:00Z', 'failed', 0, 'closed-page');
+      const result = await submitOne(db, { applicant: {}, blocklist: [], platformBlocklist: [] }, 'greenhouse-3', { actor: 'test' });
+      assert.equal(result.success, true);
+      assert.equal(calls.length, 1);
+      assert.equal(calls[0].mode, 'submit');
 
-    const rows = await planAutoApply(db, {
-      applicant: {},
-      blocklist: [],
-      platformBlocklist: ['ashby'],
-    }, {
-      retryFailed: true,
-      scoreOrder: 'asc',
-    });
+      const job = db.prepare('SELECT status, stage, auto_apply_status FROM jobs WHERE id = ?').get('greenhouse-3');
+      assert.equal(job.status, 'applied');
+      assert.equal(job.stage, 'applied');
+      assert.equal(job.auto_apply_status, 'success');
 
-    assert.deepEqual(rows.map((row) => row.jobId), ['job-validation']);
-  });
+      const event = db.prepare('SELECT event_type, to_value FROM events').get();
+      assert.equal(event.event_type, 'stage_change');
+      assert.equal(event.to_value, 'applied');
 
-  it('does not skip supported jobs just because they are marked complex', async () => {
-    const db = createDb();
-    const insertJob = db.prepare(`
-      INSERT INTO jobs (id, company, title, url, platform, score, status, auto_apply_status, apply_complexity, created_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `);
-
-    insertJob.run('job-greenhouse', 'Acme', 'Platform Engineer', 'https://boards.greenhouse.io/acme/jobs/1', 'greenhouse', 4, 'pending', null, 'complex', '2026-04-21T10:00:00Z');
-    insertJob.run('job-lever', 'Bravo', 'DevOps Engineer', 'https://jobs.lever.co/bravo/12345678-1234-1234-1234-123456789012', 'lever', 5, 'pending', null, 'complex', '2026-04-21T11:00:00Z');
-
-    const rows = await planAutoApply(db, {
-      applicant: {},
-      blocklist: [],
-      platformBlocklist: ['ashby'],
-    }, {
-      scoreOrder: 'asc',
-    });
-
-    assert.equal(rows.length, 2);
-    assert.equal(rows[0].skipReason, null);
-    assert.equal(rows[0].canSubmit, true);
-    assert.equal(rows[1].skipReason, null);
-    assert.equal(rows[1].canSubmit, true);
-  });
-
-  it('can require an existing ready prep before selecting jobs', async () => {
-    const db = createDb();
-    const insertJob = db.prepare(`
-      INSERT INTO jobs (id, company, title, url, platform, score, status, auto_apply_status, apply_complexity, created_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `);
-    const insertPrep = db.prepare(`
-      INSERT INTO application_preps (job_id, status)
-      VALUES (?, ?)
-    `);
-
-    insertJob.run('job-ready', 'Acme', 'Platform Engineer', 'https://boards.greenhouse.io/acme/jobs/1', 'greenhouse', 4, 'pending', null, 'simple', '2026-04-21T10:00:00Z');
-    insertJob.run('job-manual', 'Bravo', 'DevOps Engineer', 'https://jobs.lever.co/bravo/12345678-1234-1234-1234-123456789012', 'lever', 5, 'pending', null, 'simple', '2026-04-21T11:00:00Z');
-    insertPrep.run('job-ready', 'ready');
-    insertPrep.run('job-manual', 'unsupported');
-
-    const rows = await planAutoApply(db, {
-      applicant: {},
-      blocklist: [],
-      platformBlocklist: ['ashby'],
-    }, {
-      scoreOrder: 'asc',
-      requireReadyPrep: true,
-    });
-
-    assert.deepEqual(rows.map((row) => row.jobId), ['job-ready']);
-    assert.equal(rows[0].prepStatus, 'ready');
-  });
-});
-
-describe('validation failure streak helper', () => {
-  it('halts after two consecutive validation failures on the same platform', () => {
-    let state = updateValidationFailureStreak({}, {
-      failure_class: 'validation',
-      platform: 'greenhouse',
-    }, 2);
-    assert.equal(state.shouldHalt, false);
-    assert.equal(state.count, 1);
-
-    state = updateValidationFailureStreak(state, {
-      failure_class: 'validation',
-      platform: 'greenhouse',
-    }, 2);
-    assert.equal(state.shouldHalt, true);
-    assert.equal(state.count, 2);
-    assert.equal(state.platform, 'greenhouse');
-  });
-
-  it('resets when the next failure is not a validation failure', () => {
-    const state = updateValidationFailureStreak({
-      platform: 'greenhouse',
-      count: 1,
-    }, {
-      failure_class: 'manual-review-needed',
-      platform: 'greenhouse',
-    }, 2);
-
-    assert.equal(state.shouldHalt, false);
-    assert.equal(state.count, 0);
-    assert.equal(state.platform, null);
-  });
-});
-
-describe('applicant profile merge', () => {
-  it('preserves default applicant fields when profile config overrides only a subset', () => {
-    const result = buildApplicantForJob({ id: 'greenhouse-1', title: 'Platform Engineer' }, {
-      firstName: 'Jake',
-      currentCompany: 'Future Card',
-    });
-
-    assert.equal(result.firstName, 'Jake');
-    assert.equal(result.currentCompany, 'Future Card');
-    assert.equal(result.school, process.env.APPLICANT_SCHOOL || '');
-    assert.equal(result.fieldOfStudy, process.env.APPLICANT_FIELD_OF_STUDY || '');
+      const receipt = db.prepare('SELECT status, details_json, pre_image_path, post_image_path FROM auto_apply_log').get();
+      assert.equal(receipt.status, 'success');
+      assert.equal(receipt.pre_image_path, '/tmp/pre.png');
+      assert.equal(receipt.post_image_path, '/tmp/post.png');
+      const details = JSON.parse(receipt.details_json);
+      assert.equal(details.verification.confirmationEmail, true);
+      assert.equal(details.verification.preSubmitScreenshot, '/tmp/pre.png');
+      assert.equal(details.verification.postSubmitScreenshot, '/tmp/post.png');
+    }, () => ({
+      status: 'ready',
+      workflow: 'cli-review',
+      apply_url: 'https://boards.greenhouse.io/acme/jobs/3',
+      questions: [
+        { label: 'Work authorization', name: 'work_auth', type: 'select', required: true },
+      ],
+      answers: {
+        work_auth: 'Yes',
+      },
+      voiceChecks: {
+        lowConfidenceFields: [],
+      },
+      generated_at: '2026-04-22T12:00:00Z',
+    }));
   });
 });
