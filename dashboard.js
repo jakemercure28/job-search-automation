@@ -20,6 +20,7 @@ const { publicDir } = require('./config/paths');
 const log = require('./lib/logger')('dashboard');
 const metrics = require('./lib/metrics');
 const { startRejectionEmailPoller } = require('./lib/rejection-email-sync');
+const { recordStatusSnapshot } = require('./lib/dashboard-insights');
 const {
   handlePipeline,
   handleMarkOutreach,
@@ -42,6 +43,7 @@ const {
   handleHelpPage,
   handleMarketResearch,
   handleDismissSlugBanner,
+  handleTrackerApi,
 } = require('./lib/dashboard-routes');
 
 const PORT = DASHBOARD_PORT;
@@ -82,6 +84,7 @@ const routes = {
   'GET /auto-apply-artifact': handleAutoApplyArtifact,
   'POST /market-research':   handleMarketResearch,
   'POST /dismiss-slug-banner': handleDismissSlugBanner,
+  'GET /api/tracker':        handleTrackerApi,
   'GET /help':               handleHelpPage,
   'GET /':                   handleDashboardPage,
 };
@@ -99,6 +102,7 @@ function refreshGauges() {
     for (const row of db.prepare("SELECT COALESCE(stage, 'none') as stage, COUNT(*) as n FROM jobs WHERE status != 'archived' GROUP BY stage").all()) {
       metrics.jobsByStage.set({ stage: row.stage }, row.n);
     }
+    recordStatusSnapshot(db);
   } catch (e) { /* metrics must never crash the server */ }
 }
 refreshGauges();
