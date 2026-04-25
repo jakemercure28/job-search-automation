@@ -1862,6 +1862,12 @@ td {
   border: 1px solid rgba(148, 163, 184, 0.25);
 }
 
+.complexity-badge.custom-url {
+  background: rgba(251, 146, 60, 0.12);
+  color: #fb923c;
+  border: 1px solid rgba(251, 146, 60, 0.3);
+}
+
 .complexity-badge.auto-applied {
   background: rgba(16, 185, 129, 0.12);
   color: #10b981;
