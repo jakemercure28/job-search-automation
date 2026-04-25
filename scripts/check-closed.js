@@ -308,7 +308,7 @@ async function main() {
     SELECT id, company, title, platform, url, stage
     FROM jobs
     WHERE status != 'archived'
-      AND stage NOT IN ('closed', 'rejected', 'offer')
+      AND (stage IS NULL OR stage NOT IN ('closed', 'rejected', 'offer'))
     ORDER BY platform, company
   `).all();
 
