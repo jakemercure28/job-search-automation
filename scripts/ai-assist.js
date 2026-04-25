@@ -36,6 +36,7 @@ function parseArgs(argv) {
 
 async function main(argv = process.argv.slice(2)) {
   loadDashboardEnv(path.join(__dirname, '..'));
+  const sessionStartedAt = Date.now();
 
   const flags = parseArgs(argv);
   const jobId = flags.job;
@@ -48,6 +49,7 @@ async function main(argv = process.argv.slice(2)) {
   const { applyWithPlatform, detectPlatform } = require('../lib/auto-applier');
   const { pickResume } = require('../lib/apply/shared');
   const { recordAutoApplyAttempt } = require('../lib/auto-apply-receipts');
+  const { waitForApplicationConfirmation } = require('../lib/gmail-code');
   const applicantDefaults = require('../config/applicant');
   const { baseDir } = require('../config/paths');
 
@@ -133,6 +135,27 @@ async function main(argv = process.argv.slice(2)) {
     filledFields: result.details?.filledFields || [],
     unresolvedFields: unresolvedFields.map((f) => f.label),
   }, null, 2));
+
+  // Watch Gmail for a confirmation email and auto-mark as applied when it arrives.
+  // Runs whether success or not — the user may have submitted manually.
+  console.error('\nWatching Gmail for application confirmation (up to 5 min)...\n');
+  try {
+    const confirmation = await waitForApplicationConfirmation(job, {
+      startedAt: sessionStartedAt,
+      maxWaitMs: 5 * 60 * 1000,
+      pollMs: 6000,
+    });
+    if (confirmation) {
+      const now = new Date().toISOString();
+      db.prepare("UPDATE jobs SET status='applied', stage='applied', applied_at=COALESCE(applied_at,?), updated_at=datetime('now') WHERE id=?")
+        .run(now, job.id);
+      console.error(`Auto-marked as applied — confirmation email received: "${confirmation.subject}"\n`);
+    } else {
+      console.error('No confirmation email found within 5 min. Mark applied manually if needed.\n');
+    }
+  } catch (e) {
+    console.error(`Confirmation watcher error: ${e.message}\n`);
+  }
 
   // Force exit — Puppeteer keeps the event loop alive after browser.disconnect()
   // because it holds a reference to the Chrome subprocess. Chrome stays open.
