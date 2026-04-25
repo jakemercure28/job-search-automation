@@ -331,7 +331,7 @@ async function main() {
         skipped++;
       } else if (result === 'closed') {
         db.prepare(`
-          UPDATE jobs SET stage='closed', status='archived', updated_at=datetime('now') WHERE id=?
+          UPDATE jobs SET stage='closed', status='closed', updated_at=datetime('now') WHERE id=?
         `).run(job.id);
         logEvent(db, job.id, 'stage_change', job.stage || null, 'closed');
         log.info('Job closed', { company: job.company, title: job.title, platform: job.platform });
