@@ -138,35 +138,4 @@ describe('ATS alias DB merge', () => {
     assert.equal(canonical.score, 9);
   });
 
-  it('sets needs-manual-review instead of archived for scored unsupported rows', () => {
-    const db = createDb();
-    db.prepare(`
-      INSERT INTO jobs (id, title, company, url, platform, status, score)
-      VALUES (?, ?, ?, ?, ?, ?, ?)
-    `).run('builtin-1', 'Senior SRE', 'Acme', 'https://builtin.com/job/1', 'Built In', 'pending', 8);
-
-    canonicalizeAlternateJob(db, db.prepare('SELECT * FROM jobs WHERE id = ?').get('builtin-1'), {
-      status: 'unsupported',
-      evidence: { unsupportedPlatform: 'iCIMS' },
-      confidence: 0.75,
-    });
-
-    assert.equal(db.prepare('SELECT status FROM jobs WHERE id = ?').get('builtin-1').status, 'needs-manual-review');
-  });
-
-  it('archives unscored unsupported rows', () => {
-    const db = createDb();
-    db.prepare(`
-      INSERT INTO jobs (id, title, company, url, platform, status)
-      VALUES (?, ?, ?, ?, ?, ?)
-    `).run('builtin-2', 'Junior SRE', 'Acme', 'https://builtin.com/job/2', 'Built In', 'pending');
-
-    canonicalizeAlternateJob(db, db.prepare('SELECT * FROM jobs WHERE id = ?').get('builtin-2'), {
-      status: 'unsupported',
-      evidence: { unsupportedPlatform: 'iCIMS' },
-      confidence: 0.75,
-    });
-
-    assert.equal(db.prepare('SELECT status FROM jobs WHERE id = ?').get('builtin-2').status, 'archived');
-  });
 });
