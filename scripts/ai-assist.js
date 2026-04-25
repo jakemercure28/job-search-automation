@@ -142,7 +142,7 @@ async function main(argv = process.argv.slice(2)) {
     db.prepare("UPDATE jobs SET status='applied', stage='applied', applied_at=COALESCE(applied_at,?), updated_at=datetime('now') WHERE id=?")
       .run(now, job.id);
     console.error('\nSuccess page detected — marked as applied.\n');
-    await new Promise((r) => setTimeout(r, 5000));
+    await new Promise((r) => setTimeout(r, 2000));
     process.exit(0);
   }
 
