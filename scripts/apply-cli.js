@@ -290,6 +290,7 @@ async function runAssist(db, flags) {
           updated_at = datetime('now')
       WHERE id = ?
     `).run(now, refreshed.id);
+    logEvent(db, refreshed.id, 'stage_change', refreshed.stage || null, 'applied');
     console.log(`\nMarked ${job.company} / ${job.title} as applied.`);
   } else {
     console.log('\nNot marked as applied. You can update the status from the dashboard.');
@@ -317,7 +318,7 @@ async function main(argv = process.argv.slice(2)) {
 
   loadDashboardEnv(path.join(__dirname, '..'));
 
-  const { getDb } = require('../lib/db');
+  const { getDb, logEvent } = require('../lib/db');
   const { baseDir } = require('../config/paths');
   const db = getDb();
   const asJson = Boolean(flags.json);
