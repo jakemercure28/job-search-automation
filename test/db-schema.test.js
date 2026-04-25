@@ -205,6 +205,7 @@ describe('db schema helpers', () => {
     const applicationPrepColumns = getColumnNames(db, 'application_preps');
     const rejectionEmailColumns = getColumnNames(db, 'rejection_email_log');
     const tailoredResumeColumns = getColumnNames(db, 'tailored_resumes');
+    const jobAliasColumns = getColumnNames(db, 'job_aliases');
 
     assert.equal(Number(schemaVersion.value), MIGRATIONS.length);
     assert.ok(jobColumns.has('rejection_reasoning'));
@@ -230,6 +231,9 @@ describe('db schema helpers', () => {
     assert.ok(tailoredResumeColumns.has('source_variant'));
     assert.ok(tailoredResumeColumns.has('resume_pdf_path'));
     assert.ok(tailoredResumeColumns.has('keywords_json'));
+    assert.ok(jobAliasColumns.has('alternate_job_id'));
+    assert.ok(jobAliasColumns.has('canonical_job_id'));
+    assert.ok(jobAliasColumns.has('evidence_json'));
   });
 
   it('backfillLegacyEvents does not duplicate rows when rerun', () => {

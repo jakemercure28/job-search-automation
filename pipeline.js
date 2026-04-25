@@ -24,8 +24,21 @@ const { scoreJob } = require('./scorer');
 const { callGemini, MODEL } = require('./lib/gemini');
 const { GEMINI_DAILY_LIMIT } = require('./config/constants');
 const { classifyComplexity } = require('./lib/complexity');
+const { isPrimaryPlatform } = require('./lib/ats-resolver');
+const { normalizeScrapedJobs } = require('./scripts/resolve-ats-aliases');
 const logPaths = require('./lib/log-paths');
 const log = require('./lib/logger')('pipeline', { logFile: logPaths.daily('pipeline') });
+
+function hasPrimaryDuplicate(db, job) {
+  return Boolean(db.prepare(`
+    SELECT 1
+    FROM jobs
+    WHERE LOWER(TRIM(title)) = LOWER(TRIM(?))
+      AND LOWER(TRIM(company)) = LOWER(TRIM(?))
+      AND LOWER(COALESCE(platform, '')) IN ('ashby', 'greenhouse', 'lever', 'workday')
+    LIMIT 1
+  `).get(job.title || '', job.company || ''));
+}
 
 async function generateSummary(newJobs) {
   if (!newJobs.length) {
@@ -55,9 +68,17 @@ Strong fits (8+/10): ${highScored.length > 0 ? highScored.map(j => `${j.company}
 
 async function run() {
   requireEnv('GEMINI_API_KEY');
-  const scraped = JSON.parse(fs.readFileSync(jobsJsonPath, 'utf8'));
+  const scrapedRaw = JSON.parse(fs.readFileSync(jobsJsonPath, 'utf8'));
 
   const db = getDb();
+  const { jobs: scraped, report: atsResolutionReport } = await normalizeScrapedJobs(scrapedRaw, { log });
+  if (atsResolutionReport.length) {
+    log.info('ATS resolution before import', {
+      canonicalized: atsResolutionReport.filter((row) => row.action === 'canonicalized').length,
+      unsupported: atsResolutionReport.filter((row) => row.action === 'skipped-unsupported').length,
+      unresolved: atsResolutionReport.filter((row) => row.action === 'unresolved').length,
+    });
+  }
 
   // Insert and deduplicate in a single transaction for atomicity
   const existing = getExistingJobKeys(db);
@@ -66,7 +87,7 @@ async function run() {
     let inserted = 0;
     for (const j of scraped) {
       const key = (j.title || '').trim().toLowerCase() + '|||' + (j.company || '').trim().toLowerCase();
-      if (existing.has(key)) { skipped++; continue; }
+      if (existing.has(key) && (!isPrimaryPlatform(j.platform) || hasPrimaryDuplicate(db, j))) { skipped++; continue; }
       existing.add(key); // prevent intra-batch dupes
       if (insertJob(db, j)) inserted++;
     }
@@ -225,4 +246,4 @@ if (require.main === module) {
   });
 }
 
-module.exports = { run };
+module.exports = { run, hasPrimaryDuplicate };
