@@ -16,7 +16,7 @@
 const fs = require('fs');
 const path = require('path');
 
-const { MAX_DESCRIPTION_LENGTH, MAX_TRANSCRIPT_LENGTH } = require('./config/constants');
+const { MAX_DESCRIPTION_LENGTH } = require('./config/constants');
 const createLogger = require('./lib/logger');
 const { baseDir } = require('./config/paths');
 const { callGemini } = require('./lib/gemini');
@@ -85,64 +85,6 @@ REASONING: <2-4 sentences explaining the score>`;
   const reasoning = reasoningMatch ? reasoningMatch[1].trim() : (scoreMatch ? text : `Score parse failed. Raw: ${text.slice(0, 200)}`);
 
   return { score, reasoning };
-}
-
-// ---------------------------------------------------------------------------
-// Rejection Transcript Analysis
-// ---------------------------------------------------------------------------
-
-/**
- * Analyze an interview transcript to identify why the candidate was rejected.
- *
- * @param {object} job - { title, company, description, rejected_from_stage }
- * @param {string} transcript - The interview transcript text
- * @returns {Promise<string>} - Markdown analysis
- */
-async function analyzeRejection(job, transcript) {
-  if (!_resume) _resume = readFile('resume.md');
-  if (!_context) _context = readFile('context.md');
-
-  const trimmedTranscript = transcript.length > MAX_TRANSCRIPT_LENGTH
-    ? transcript.slice(0, MAX_TRANSCRIPT_LENGTH) + '\n\n[Transcript truncated]'
-    : transcript;
-
-  const prompt = `You are analyzing why a job candidate was rejected, based on their interview transcript.
-Your goal is to identify concrete, actionable feedback from the evidence available.
-
-## Candidate Resume
-${_resume}
-
-## Candidate Context
-${_context}
-
-## Job Details
-Title: ${job.title}
-Company: ${job.company}
-Stage reached: ${job.rejected_from_stage || 'unknown'}
-Description: ${(job.description || '').slice(0, MAX_DESCRIPTION_LENGTH)}
-
-## Interview Transcript
-${trimmedTranscript}
-
----
-
-Analyze this rejection. Focus on:
-1. CONCRETE moments in the transcript where the candidate struggled, gave weak answers, or missed opportunities
-2. Technical gaps that surfaced during the conversation
-3. Communication or behavioral signals that may have contributed
-4. What the interviewer seemed to be probing for vs what the candidate delivered
-
-Be specific. Quote or reference actual exchanges from the transcript.
-Do NOT speculate about internal hiring decisions you cannot see.
-Do NOT sugarcoat. The candidate wants honest, useful feedback.
-
-Format as markdown with sections:
-## Key Moments
-## Technical Gaps
-## Communication Notes
-## What To Do Differently`;
-
-  return await callGemini(prompt, 3, 1500);
 }
 
 // ---------------------------------------------------------------------------
@@ -217,4 +159,4 @@ if (require.main === module) {
   });
 }
 
-module.exports = { scoreJob, analyzeRejection, scoreRejectionLikelihood, callGemini };
+module.exports = { scoreJob, scoreRejectionLikelihood, callGemini };
