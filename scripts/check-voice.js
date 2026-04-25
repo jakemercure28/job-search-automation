@@ -68,6 +68,14 @@ async function main() {
     }
   }
 
+  if (!result.huggingface) {
+    console.log('HuggingFace: no API key set (add HUGGINGFACE_API_KEY to .env)');
+  } else if (result.huggingface.error) {
+    console.log(`HuggingFace: error — ${result.huggingface.error}`);
+  } else {
+    console.log(`HuggingFace: ${renderScore(result.huggingface.score)}`);
+  }
+
   console.log('');
   if (!result.passed) process.exit(1);
 }
