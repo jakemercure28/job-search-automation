@@ -24,7 +24,6 @@ const {
   handlePipeline,
   handleMarkOutreach,
   handleArchive,
-  handleRejectionAnalysis,
   handleResume,
   handleGetCompanyNotes,
   handleSaveCompanyNotes,
@@ -67,7 +66,6 @@ const routes = {
   'POST /mark-outreach':     handleMarkOutreach,
 
   'POST /archive':           handleArchive,
-  'GET /rejection-analysis': handleRejectionAnalysis,
   'GET /resume':             handleResume,
   'GET /company-notes':      handleGetCompanyNotes,
   'POST /company-notes':     handleSaveCompanyNotes,
