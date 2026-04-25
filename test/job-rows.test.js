@@ -69,7 +69,7 @@ describe('renderJobTable', () => {
     assert.match(html, /onclick="location='\/\?filter=all&sort=date&level=1&q=platform\+aws&minScore=8'"/);
   });
 
-  it('shows historical auto result badges and exposes manual prep/resume actions only', () => {
+  it('does not show auto-apply badges and exposes manual prep/resume actions only', () => {
     const html = renderJobTable([
       {
         id: 'job-3',
@@ -100,8 +100,8 @@ describe('renderJobTable', () => {
       },
     ], {}, {}, 'not-applied', 'score', '', null);
 
-    assert.match(html, /Auto-apply failed: Required fields still empty before submit/);
-    assert.match(html, /class="complexity-badge auto-failed"[^>]*>autox<\/span>/);
+    assert.doesNotMatch(html, /Auto-apply failed/);
+    assert.doesNotMatch(html, /autox/);
     assert.match(html, /Manual Apply Prep/);
     assert.equal((html.match(/Tailor Resume/g) || []).length, 2);
     assert.equal((html.match(/View Tailored Resume/g) || []).length, 1);
