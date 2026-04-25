@@ -1067,6 +1067,40 @@ header {
   white-space: nowrap;
 }
 
+/* ── ATS Badge ───────────────────────────────────────────────────── */
+
+.badge-ats {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 600;
+  border-radius: 4px;
+  padding: 1px 5px;
+  white-space: nowrap;
+  text-transform: lowercase;
+  display: inline-flex;
+  align-items: center;
+}
+.badge-ats-greenhouse {
+  color: #6ee7b7;
+  background: rgba(52, 211, 153, 0.1);
+  border: 0.5px solid rgba(52, 211, 153, 0.25);
+}
+.badge-ats-ashby {
+  color: #93c5fd;
+  background: rgba(59, 130, 246, 0.1);
+  border: 0.5px solid rgba(59, 130, 246, 0.25);
+}
+.badge-ats-lever {
+  color: #fcd34d;
+  background: rgba(245, 158, 11, 0.1);
+  border: 0.5px solid rgba(245, 158, 11, 0.25);
+}
+.badge-ats-workday {
+  color: #f9a8d4;
+  background: rgba(236, 72, 153, 0.1);
+  border: 0.5px solid rgba(236, 72, 153, 0.25);
+}
+
 /* ── Status Column ───────────────────────────────────────────────── */
 
 .job-col-status {
@@ -1422,7 +1456,8 @@ td {
 .job-badges > .complexity-badge,
 .job-badges > .badge-ai,
 .job-badges > .badge-std,
-.job-badges > .badge-salary {
+.job-badges > .badge-salary,
+.job-badges > .badge-ats {
   flex-shrink: 0;
   margin-left: 0;
 }
@@ -2463,7 +2498,8 @@ td {
   .job-badges > .complexity-badge,
   .job-badges > .badge-ai,
   .job-badges > .badge-std,
-  .job-badges > .badge-salary {
+  .job-badges > .badge-salary,
+  .job-badges > .badge-ats {
     margin-top: 2px;
   }
 
