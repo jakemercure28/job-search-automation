@@ -102,7 +102,7 @@ async function main(argv = process.argv.slice(2)) {
   try {
     result = await applyWithPlatform(job, applicant, platform, {
       mode: 'assist',
-      prep: { answers, questions, unresolvedFields, lowConfidenceFields: [] },
+      prep: { answers, questions, unresolvedFields, lowConfidenceFields: [], applyUrl: override.applyUrl || null },
     });
   } catch (err) {
     const out = { success: false, error: err.message };
@@ -135,6 +135,16 @@ async function main(argv = process.argv.slice(2)) {
     filledFields: result.details?.filledFields || [],
     unresolvedFields: unresolvedFields.map((f) => f.label),
   }, null, 2));
+
+  // If the watcher detected the success page on-screen, mark applied immediately and exit.
+  if (result.successPageDetected) {
+    const now = new Date().toISOString();
+    db.prepare("UPDATE jobs SET status='applied', stage='applied', applied_at=COALESCE(applied_at,?), updated_at=datetime('now') WHERE id=?")
+      .run(now, job.id);
+    console.error('\nSuccess page detected — marked as applied.\n');
+    await new Promise((r) => setTimeout(r, 5000));
+    process.exit(0);
+  }
 
   // Watch Gmail for a confirmation email and auto-mark as applied when it arrives.
   // Runs whether success or not — the user may have submitted manually.

@@ -84,6 +84,19 @@ For each field in `customFields`, generate an answer. Use the job description, y
 - Don't explain why something was impressive — just state it.
 - Honest about gaps; doesn't oversell.
 
+## Step 4.5: Voice-check all text/textarea answers
+
+For every `text` or `textarea` answer you generated, run it through the voice checker **before showing it to the user**:
+
+```bash
+SAPLING_API_KEY=$(grep SAPLING_API_KEY .env | cut -d= -f2) node scripts/check-voice.js "ANSWER_TEXT"
+```
+
+- If local checks fail (kill word, dash, banned opener): rewrite immediately, re-check.
+- If Sapling score >= 50% AI: rewrite to add roughness (fragments, asides, informal phrasing), re-check.
+- Keep iterating until the check passes before showing to the user.
+- Skip this check for `select`, checkbox, and single-word answers.
+
 ## Step 5: Show answers and confirm
 
 Present the answers in a readable table:
@@ -97,12 +110,14 @@ ANSWERS:
   {label} ............... {answer}
   (null means you'll fill manually)
 
+VOICE CHECK: passed / N issues fixed
+
 UNRESOLVED ({count}): list label names
 ```
 
 Ask the user: "Proceed to fill the form, or would you like to change any answers?"
 
-If the user wants changes, revise inline and show the updated answer. Repeat until they approve.
+If the user wants changes, revise inline, re-run the voice check, and show the updated answer. Repeat until they approve.
 
 ## Step 6: Write override file
 
