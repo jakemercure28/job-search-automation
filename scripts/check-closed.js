@@ -80,13 +80,57 @@ function extractJobUUID(id, platform) {
 
 // ── Greenhouse ────────────────────────────────────────────────────────────────
 
-async function checkGreenhouse(job) {
-  const slug = extractSlugFromUrl(job.url, 'Greenhouse');
-  if (!slug) return checkGenericUrl(job); // custom domain — fall back to URL check
+// Cache of hostname → resolved GH slug (null = not found). Avoids re-probing
+// the same company for every job in a batch.
+const ghSlugCache = {};
 
-  // Prefer the job ID from the URL path — stored IDs may use a different format
-  // (e.g. "builtin-12345" for Built In jobs) and won't match GH's API.
-  // URL path: /{slug}/jobs/{ghJobId} or custom domain with ?gh_jid=
+// For custom-domain GH jobs the slug isn't in the URL. Try three fast probes:
+//   1. `board=` URL param (CoreWeave-style)
+//   2. company field from DB (already lowercased, usually matches exactly)
+//   3. hostname first segment (e.g. careers.upstart.com → upstart)
+// Each candidate is validated against the GH boards API before being trusted.
+async function discoverGreenhouseSlug(job) {
+  const candidates = new Set();
+
+  try {
+    const u = new URL(job.url);
+    const boardParam = u.searchParams.get('board');
+    if (boardParam) candidates.add(boardParam.toLowerCase());
+
+    // hostname first label: careers.upstart.com → upstart; okta.com → okta
+    const host = u.hostname.replace(/^www\./, '').split('.')[0];
+    if (host) candidates.add(host);
+  } catch (_) {}
+
+  if (job.company) {
+    const c = job.company.toLowerCase();
+    candidates.add(c);
+    candidates.add(c.replace(/\s+/g, ''));
+    candidates.add(c.replace(/\s+/g, '-'));
+  }
+
+  for (const candidate of candidates) {
+    if (candidate in ghSlugCache) {
+      if (ghSlugCache[candidate]) return ghSlugCache[candidate];
+      continue;
+    }
+    const res = await httpGet(`https://api.greenhouse.io/v1/boards/${candidate}/jobs`);
+    if (res && res.ok) {
+      ghSlugCache[candidate] = candidate;
+      return candidate;
+    }
+    ghSlugCache[candidate] = null;
+  }
+
+  return null;
+}
+
+async function checkGreenhouse(job) {
+  let slug = extractSlugFromUrl(job.url, 'Greenhouse');
+  if (!slug) slug = await discoverGreenhouseSlug(job);
+
+  // Extract the GH numeric job ID from the URL before falling back to generic.
+  // Always prefer gh_jid param or path segment over our internal DB id format.
   let jobId = null;
   try {
     const u = new URL(job.url);
@@ -97,7 +141,10 @@ async function checkGreenhouse(job) {
     }
     if (!jobId) jobId = u.searchParams.get('gh_jid');
   } catch (_) {}
-  if (!jobId) jobId = extractJobUUID(job.id, 'Greenhouse'); // fallback
+  if (!jobId) jobId = extractJobUUID(job.id, 'Greenhouse');
+
+  // If we couldn't resolve a slug, fall back to a generic URL check.
+  if (!slug) return checkGenericUrl(job);
 
   const apiUrl = `https://api.greenhouse.io/v1/boards/${slug}/jobs/${jobId}`;
   const res = await httpGet(apiUrl);
