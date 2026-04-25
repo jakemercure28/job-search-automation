@@ -82,7 +82,7 @@ function extractJobUUID(id, platform) {
 
 async function checkGreenhouse(job) {
   const slug = extractSlugFromUrl(job.url, 'Greenhouse');
-  if (!slug) return null; // can't determine slug, skip
+  if (!slug) return checkGenericUrl(job); // custom domain — fall back to URL check
 
   // Prefer the job ID from the URL path — stored IDs may use a different format
   // (e.g. "builtin-12345" for Built In jobs) and won't match GH's API.
