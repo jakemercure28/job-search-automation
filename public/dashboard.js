@@ -71,6 +71,12 @@ function toggleInsights() {
       if (items[3] != null) items[3].textContent = data.todayApplied ?? 0;
       const digestEl = drawer.querySelector('.insight-text');
       if (digestEl && data.dailyDigest) digestEl.textContent = data.dailyDigest;
+      if (window._insightChart && Array.isArray(data.dailyCounts)) {
+        window._insightChart.data.labels = data.dailyCounts.map(function(d) { return d.label; });
+        window._insightChart.data.datasets[0].data = data.dailyCounts.map(function(d) { return d.count; });
+        window._insightChart.data.datasets[1].data = data.dailyCounts.map(function(d) { return d.target; });
+        window._insightChart.update();
+      }
     }).catch(() => {});
   }
 }
