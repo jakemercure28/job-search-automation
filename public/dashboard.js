@@ -62,6 +62,17 @@ function toggleInsights() {
   const isOpen = drawer.classList.toggle('open');
   if (overlay) overlay.classList.toggle('open', isOpen);
   if (btn) btn.classList.toggle('active', isOpen);
+  if (isOpen) {
+    fetch('/api/insights').then(r => r.json()).then(data => {
+      const items = drawer.querySelectorAll('.insight-stats .stat-item .stat-n');
+      if (items[0] != null) items[0].textContent = data.todayAutoApplied ?? 0;
+      if (items[1] != null) items[1].textContent = data.todayRejected ?? 0;
+      if (items[2] != null) items[2].textContent = data.todayClosed ?? 0;
+      if (items[3] != null) items[3].textContent = data.todayApplied ?? 0;
+      const digestEl = drawer.querySelector('.insight-text');
+      if (digestEl && data.dailyDigest) digestEl.textContent = data.dailyDigest;
+    }).catch(() => {});
+  }
 }
 
 document.addEventListener('click', e => {
