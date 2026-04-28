@@ -867,7 +867,7 @@ header {
 
 .job-list-header {
   display: grid;
-  grid-template-columns: 50px 1fr 80px 140px 120px 40px;
+  grid-template-columns: 50px 1fr 108px 140px 120px 40px;
   padding: 4px 80px;
   align-items: center;
 }
@@ -905,7 +905,7 @@ header {
 
 .job-card {
   display: grid;
-  grid-template-columns: 50px 1fr 80px 140px 120px 40px;
+  grid-template-columns: 50px 1fr 108px 140px 120px 40px;
   width: 100%;
   background: rgba(255, 255, 255, 0.03);
   border: 0.5px solid rgba(255, 255, 255, 0.10);
@@ -2531,6 +2531,10 @@ td {
 
   .job-col-date::before {
     content: 'POSTED';
+  }
+
+  .job-list.filter-rejected .job-col-date::before {
+    content: 'REJECTED';
   }
 
   .job-col-location::before {
