@@ -11,6 +11,7 @@ const { applyBaseSchema, applyMigrations } = require('../lib/db/schema');
 const {
   isRejectionEmail,
   matchRejectionEmail,
+  REJECTION_EMAIL_SYNC_LOG,
   syncRejectionEmails,
 } = require('../lib/rejection-email-sync');
 
@@ -127,7 +128,7 @@ describe('rejection email sync', () => {
       ignored: 0,
       unmatched: 0,
     });
-    assert.equal(job.status, 'archived');
+    assert.equal(job.status, 'rejected');
     assert.equal(job.stage, 'rejected');
     assert.equal(job.rejected_from_stage, 'applied');
     assert.ok(job.rejected_at);
@@ -292,5 +293,114 @@ describe('rejection email sync', () => {
 
     assert.equal(match.job.id, 'job-1');
     assert.equal(match.reason, 'single_active_company_job');
+  });
+
+  it('uses the daily rejection-sync log path', () => {
+    assert.equal(path.dirname(REJECTION_EMAIL_SYNC_LOG), path.join(__dirname, '..', 'logs', 'rejection-sync'));
+    assert.match(path.basename(REJECTION_EMAIL_SYNC_LOG), /^\d{8}\.log$/);
+  });
+
+  it('records already-rejected matching jobs as ignored instead of unmatched', async () => {
+    const db = createDb();
+    insertJob(db, {
+      id: 'job-1',
+      company: 'blinkhealth',
+      title: 'Staff Site Reliability Engineer',
+      url: 'https://job-boards.greenhouse.io/blinkhealth/jobs/12345',
+      status: 'rejected',
+      stage: 'rejected',
+    });
+
+    const summary = await syncRejectionEmails(db, {
+      skipTrash: true,
+      fetchMessages: makeFetcher([
+        makeMessage({
+          uid: 16,
+          subject: 'Important information about your application to Blink Health: Staff Site Reliability Engineer',
+          fromAddress: 'no-reply@greenhouse.io',
+          raw: `
+            Thank you for applying to Blink Health.
+            Unfortunately, we have decided not to move forward.
+          `,
+        }),
+      ]),
+    });
+
+    const emailLog = db.prepare(`
+      SELECT matched_job_id, match_status, reason
+      FROM rejection_email_log
+      WHERE uid = 16
+    `).get();
+
+    assert.equal(summary.ignored, 1);
+    assert.equal(summary.unmatched, 0);
+    assert.deepEqual(emailLog, {
+      matched_job_id: 'job-1',
+      match_status: 'ignored',
+      reason: 'already_rejected',
+    });
+  });
+
+  it('prefers active jobs before falling back to already-rejected jobs', () => {
+    const db = createDb();
+    insertJob(db, {
+      id: 'job-1',
+      company: 'Acme',
+      title: 'Platform Engineer',
+      url: 'https://job-boards.greenhouse.io/acme/jobs/1111',
+      status: 'rejected',
+      stage: 'rejected',
+    });
+    insertJob(db, {
+      id: 'job-2',
+      company: 'Acme',
+      title: 'Site Reliability Engineer',
+      url: 'https://job-boards.greenhouse.io/acme/jobs/2222',
+    });
+
+    const match = matchRejectionEmail(db, makeMessage({
+      uid: 17,
+      subject: 'Important information about your application to Acme',
+      fromAddress: 'careers@acme.example',
+      raw: `
+        Thank you for applying to Acme.
+        Unfortunately, we have decided not to proceed.
+      `,
+    }));
+
+    assert.equal(match.job.id, 'job-2');
+    assert.equal(match.reason, 'single_active_company_job');
+  });
+
+  it('matches company suffix variants like PitchBook Data emails that say PitchBook', () => {
+    const db = createDb();
+    insertJob(db, {
+      id: 'job-1',
+      company: 'pitchbookdata',
+      title: 'Software Development Engineer, Platform Engineering',
+      url: 'https://job-boards.greenhouse.io/pitchbookdata/jobs/1111',
+      status: 'closed',
+      stage: 'closed',
+    });
+    insertJob(db, {
+      id: 'job-2',
+      company: 'pitchbookdata',
+      title: 'Sr. Site Reliability Engineer',
+      url: 'https://job-boards.greenhouse.io/pitchbookdata/jobs/2222',
+    });
+
+    const match = matchRejectionEmail(db, makeMessage({
+      uid: 18,
+      subject: 'Your application for Sr. Site Reliability Engineer at PitchBook',
+      fromAddress: 'no-reply@greenhouse.io',
+      raw: `
+        Thank you for applying to PitchBook.
+        Unfortunately, we have decided not to move forward with your application
+        for the Sr. Site Reliability Engineer role.
+      `,
+    }));
+
+    assert.equal(match.job.id, 'job-2');
+    assert.equal(match.reason, 'company_title_match');
   });
 });
