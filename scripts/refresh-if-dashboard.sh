@@ -6,9 +6,10 @@ export PATH="/opt/homebrew/bin:/usr/local/bin:$PATH"
 
 PORT="${DASHBOARD_PORT:-3131}"
 REPO="$(cd "$(dirname "$0")/.." && pwd)"
-LOG="$REPO/logs/refresh.log"
+LOG_DIR="$REPO/logs/refresh"
+LOG="$LOG_DIR/$(date +%Y%m%d).log"
 
-mkdir -p "$REPO/logs"
+mkdir -p "$LOG_DIR"
 
 NOW() { date +"%Y-%m-%dT%H:%M:%S%z"; }
 

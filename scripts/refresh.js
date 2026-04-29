@@ -6,6 +6,7 @@ const { spawnSync } = require('child_process');
 
 const { loadDashboardEnv, loadEnvFile } = require('../lib/env');
 const { formatBuffer } = require('../lib/refresh-logger');
+const { formatLocalTime, formatLocalTimestamp } = require('../lib/time-format');
 
 function parseArgs(argv) {
   const flags = new Set(argv.filter((arg) => arg.startsWith('--')));
@@ -46,14 +47,6 @@ function loadActiveProfileEnv(repoRoot) {
   };
 }
 
-function localTime() {
-  return new Date().toLocaleTimeString('en-US', { hour12: false });
-}
-
-function localDateTime() {
-  return new Date().toLocaleString('en-US', { hour12: false }).replace(',', '');
-}
-
 function elapsed(startMs) {
   const ms = Date.now() - startMs;
   if (ms < 1000) return `${ms}ms`;
@@ -63,14 +56,14 @@ function elapsed(startMs) {
   return `${m}m ${(s % 60).toFixed(0)}s`;
 }
 
-// When stdout is not a TTY (i.e. piped into logs/refresh.log), capture child
+// When stdout is not a TTY (i.e. piped into logs/refresh/YYYYMMDD.log), capture child
 // output and format it as readable text. When interactive, inherit so output
 // streams live to the terminal.
 const IS_LOG = !process.stdout.isTTY;
 
 function runStep(repoRoot, label, args, { optional = false } = {}) {
   const start = Date.now();
-  console.log(`${localTime()}  [refresh]  ${label}...`);
+  console.log(`${formatLocalTime()}  [refresh]  ${label}...`);
 
   const result = spawnSync(process.execPath, args, {
     cwd: repoRoot,
@@ -88,15 +81,15 @@ function runStep(repoRoot, label, args, { optional = false } = {}) {
   }
 
   if (result.status === 0) {
-    console.log(`${localTime()}  [refresh]  ${label} done (${elapsed(start)})`);
+    console.log(`${formatLocalTime()}  [refresh]  ${label} done (${elapsed(start)})`);
     return;
   }
   if (optional) {
-    console.warn(`${localTime()}  [refresh]  ${label} skipped — exit ${result.status || 1} (${elapsed(start)})`);
+    console.warn(`${formatLocalTime()}  [refresh]  ${label} skipped — exit ${result.status || 1} (${elapsed(start)})`);
     return;
   }
 
-  console.error(`${localTime()}  [refresh]  ${label} FAILED — exit ${result.status || 1} (${elapsed(start)})`);
+  console.error(`${formatLocalTime()}  [refresh]  ${label} FAILED — exit ${result.status || 1} (${elapsed(start)})`);
   process.exit(result.status || 1);
 }
 
@@ -134,7 +127,7 @@ function main() {
   const active = loadActiveProfileEnv(repoRoot);
 
   console.log(`\n${'─'.repeat(60)}`);
-  console.log(`${localDateTime()}  [refresh]  RUN START`);
+  console.log(`${formatLocalTimestamp(new Date(), { milliseconds: false })}  [refresh]  RUN START`);
   console.log(`  profile  ${active.profileDir}`);
   console.log(`  db       ${active.dbPath}`);
   console.log('─'.repeat(60));
@@ -164,7 +157,7 @@ function main() {
   }
 
   console.log('─'.repeat(60));
-  console.log(`${localDateTime()}  [refresh]  RUN COMPLETE (${elapsed(runStart)})`);
+  console.log(`${formatLocalTimestamp(new Date(), { milliseconds: false })}  [refresh]  RUN COMPLETE (${elapsed(runStart)})`);
   console.log('─'.repeat(60));
 }
 
