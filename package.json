@@ -4,7 +4,7 @@
   "description": "Automated job search workflow",
   "type": "commonjs",
   "scripts": {
-    "start": "set -a && . .env && set +a && node dashboard.js",
+    "start": "node dashboard.js",
     "scrape": "set -a && . .env && set +a && node scraper.js",
     "pipeline": "set -a && . .env && set +a && node pipeline.js",
     "refresh": "node scripts/refresh.js",
