@@ -69,6 +69,30 @@ describe('renderJobTable', () => {
     assert.match(html, /onclick="location='\/\?filter=all&sort=date&level=1&q=platform\+aws&minScore=8'"/);
   });
 
+  it('uses rejected date as the rejected view date column', () => {
+    const html = renderJobTable([
+      {
+        id: 'job-rejected',
+        title: 'SRE',
+        company: 'Acme',
+        url: 'https://example.com/jobs/rejected',
+        location: 'Remote',
+        description: '',
+        status: 'rejected',
+        stage: 'rejected',
+        applied_at: '2026-04-01T12:00:00Z',
+        rejected_at: '2026-04-28T12:00:00Z',
+        posted_at: '2026-03-01',
+        score: 7,
+      },
+    ], {}, {}, 'rejected', 'date', '', null);
+
+    assert.match(html, /Date Rejected/);
+    assert.match(html, /<div class="job-col-date">Apr 28<\/div>/);
+    assert.doesNotMatch(html, /<div class="job-col-date">Mar 1<\/div>/);
+    assert.match(html, /class="job-list filter-rejected"/);
+  });
+
   it('does not show auto-apply badges and exposes manual prep/resume actions only', () => {
     const html = renderJobTable([
       {
