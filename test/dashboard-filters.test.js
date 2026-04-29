@@ -22,6 +22,6 @@ describe('dashboard filter links', () => {
 
     assert.match(html, /value="Acme remote"/);
     assert.match(html, /id="score-filter"[^>]*value="6"/);
-    assert.match(html, /href="\/\?filter=rejected&sort=score&level=1&q=Acme\+remote&minScore=6"/);
+    assert.match(html, /href="\/\?filter=rejected&sort=date&level=1&q=Acme\+remote&minScore=6"/);
   });
 });
