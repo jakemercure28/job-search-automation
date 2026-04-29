@@ -1,9 +1,45 @@
 'use strict';
 
+const fs = require('fs');
+const os = require('os');
+const path = require('path');
+const Database = require('better-sqlite3');
 const { describe, it } = require('node:test');
 const assert = require('node:assert/strict');
 
+const { applyBaseSchema, applyMigrations } = require('../lib/db/schema');
+const { fetchFilteredJobs } = require('../lib/dashboard-routes');
 const { renderJobTable } = require('../lib/html/job-rows');
+
+function createDb() {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'job-search-job-rows-'));
+  const db = new Database(path.join(dir, 'jobs.db'));
+  applyBaseSchema(db);
+  applyMigrations(db);
+  return db;
+}
+
+function insertRejectedJob(db, job) {
+  db.prepare(`
+    INSERT INTO jobs (
+      id, title, company, url, platform, location, posted_at, description,
+      score, status, applied_at, stage, rejected_at, updated_at
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'rejected', ?, 'rejected', ?, ?)
+  `).run(
+    job.id,
+    job.title || 'Platform Engineer',
+    job.company || 'Acme',
+    job.url || `https://example.com/jobs/${job.id}`,
+    'Greenhouse',
+    'Remote',
+    job.posted_at || '2026-03-01',
+    'Build infrastructure',
+    job.score,
+    job.applied_at || '2026-04-01T00:00:00Z',
+    job.rejected_at,
+    job.updated_at || job.rejected_at
+  );
+}
 
 describe('renderJobTable', () => {
   it('renders company badges with stable ordering and an applied-date badge', () => {
@@ -132,5 +168,35 @@ describe('renderJobTable', () => {
     assert.doesNotMatch(html, /Apply Now/);
     assert.doesNotMatch(html, />simple</);
     assert.doesNotMatch(html, />complex</);
+  });
+});
+
+describe('fetchFilteredJobs', () => {
+  it('sorts rejected jobs by rejection date by default sort and by score when requested', () => {
+    const db = createDb();
+    insertRejectedJob(db, {
+      id: 'low-newest',
+      score: 5,
+      rejected_at: '2026-04-28T12:00:00Z',
+    });
+    insertRejectedJob(db, {
+      id: 'high-oldest',
+      score: 9,
+      rejected_at: '2026-04-01T12:00:00Z',
+    });
+    insertRejectedJob(db, {
+      id: 'high-middle',
+      score: 9,
+      rejected_at: '2026-04-20T12:00:00Z',
+    });
+
+    assert.deepEqual(
+      fetchFilteredJobs(db, 'rejected', 'date').map((job) => job.id),
+      ['low-newest', 'high-middle', 'high-oldest']
+    );
+    assert.deepEqual(
+      fetchFilteredJobs(db, 'rejected', 'score').map((job) => job.id),
+      ['high-middle', 'high-oldest', 'low-newest']
+    );
   });
 });

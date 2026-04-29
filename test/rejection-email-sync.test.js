@@ -86,6 +86,9 @@ describe('rejection email sync', () => {
       'We made the decision to not move forward with your application at this time.',
       'We decided to proceed with candidates whose backgrounds more closely align with this role.',
       'Due to limited headcount, the team is moving forward with other candidates for this role.',
+      'The role has recently been paused while we reassess hiring plans.',
+      'Thank you for your interest, but this opening has now been filled.',
+      'This requisition has already been placed on hold.',
     ];
 
     for (const [index, raw] of examples.entries()) {
@@ -406,6 +409,91 @@ describe('rejection email sync', () => {
     });
   });
 
+  it('classifies messages without writing jobs, logs, or sync metadata', async () => {
+    const db = createDb();
+    insertJob(db, {
+      id: 'job-1',
+      company: 'Acme',
+      title: 'Platform Engineer',
+      url: 'https://job-boards.greenhouse.io/acme/jobs/12345',
+    });
+
+    const summary = await syncRejectionEmails(db, {
+      classifyOnly: true,
+      skipTrash: true,
+      fetchMessages: makeFetcher([
+        makeMessage({
+          uid: 23,
+          subject: 'Update from Acme',
+          fromAddress: 'careers@acme.example',
+          raw: 'Unfortunately, we are not moving forward with your application.',
+        }),
+      ]),
+    });
+
+    const job = db.prepare("SELECT status, stage FROM jobs WHERE id = 'job-1'").get();
+    const emailLogs = db.prepare('SELECT COUNT(*) AS n FROM rejection_email_log').get();
+    const metadata = db.prepare("SELECT COUNT(*) AS n FROM metadata WHERE key LIKE 'rejection_email_%'").get();
+
+    assert.equal(summary.dryRun, 1);
+    assert.deepEqual(job, { status: 'applied', stage: 'applied' });
+    assert.equal(emailLogs.n, 0);
+    assert.equal(metadata.n, 0);
+  });
+
+  it('replays old messages without advancing normal sync metadata', async () => {
+    const db = createDb();
+    insertJob(db, {
+      id: 'job-1',
+      company: 'Acme',
+      title: 'Platform Engineer',
+      url: 'https://job-boards.greenhouse.io/acme/jobs/12345',
+    });
+    db.prepare("INSERT INTO metadata (key, value) VALUES ('rejection_email_last_uid', '99')").run();
+    db.prepare("INSERT INTO metadata (key, value) VALUES ('rejection_email_uid_validity', '777')").run();
+    db.prepare(`
+      INSERT INTO rejection_email_log (
+        mailbox, uid_validity, uid, message_id, subject, match_status, reason
+      ) VALUES (?, ?, ?, ?, ?, ?, ?)
+    `).run('[Gmail]/All Mail', '777', 24, '<old@example.com>', 'Old unmatched row', 'unmatched', 'no_company_match');
+
+    let observedLastUid = undefined;
+    const fetchMessages = async ({ lastUid }) => {
+      observedLastUid = lastUid;
+      return makeFetcher([
+        makeMessage({
+          uid: 24,
+          subject: 'Update from Acme',
+          fromAddress: 'careers@acme.example',
+          raw: 'Unfortunately, we are not moving forward with your application.',
+        }),
+      ])({ lastUid });
+    };
+
+    const summary = await syncRejectionEmails(db, {
+      replay: true,
+      skipTrash: true,
+      fetchMessages,
+    });
+
+    const emailLog = db.prepare(`
+      SELECT subject, matched_job_id, match_status, reason
+      FROM rejection_email_log
+      WHERE uid = 24
+    `).get();
+    const lastUid = db.prepare("SELECT value FROM metadata WHERE key = 'rejection_email_last_uid'").get();
+
+    assert.equal(observedLastUid, null);
+    assert.equal(summary.applied, 1);
+    assert.deepEqual(emailLog, {
+      subject: 'Update from Acme',
+      matched_job_id: 'job-1',
+      match_status: 'applied',
+      reason: 'single_active_company_job',
+    });
+    assert.equal(lastUid.value, '99');
+  });
+
   it('prefers active jobs before falling back to already-rejected jobs', () => {
     const db = createDb();
     insertJob(db, {
@@ -499,4 +587,44 @@ describe('rejection email sync', () => {
     assert.equal(match.job.id, 'job-1');
     assert.equal(match.reason, 'company_title_match');
   });
+
+  it('prefers a non-archived duplicate when title matches are otherwise identical', () => {
+    const db = createDb();
+    insertJob(db, {
+      id: 'job-1',
+      company: 'Acme',
+      title: 'Senior DevOps Engineer',
+      url: 'https://example.com/acme/jobs/1111',
+      status: 'archived',
+      stage: 'applied',
+    });
+    insertJob(db, {
+      id: 'job-2',
+      company: 'Acme',
+      title: 'Senior DevOps Engineer',
+      url: 'https://example.com/acme/jobs/2222',
+      status: 'closed',
+      stage: 'closed',
+    });
+    insertJob(db, {
+      id: 'job-3',
+      company: 'Acme',
+      title: 'Senior DevOps Engineer (Active Secret Clearance)',
+      url: 'https://example.com/acme/jobs/3333',
+    });
+
+    const match = matchRejectionEmail(db, makeMessage({
+      uid: 25,
+      subject: 'Application update',
+      fromAddress: 'careers@acme.example',
+      raw: `
+        Thank you for your interest in Acme.
+        The Senior DevOps Engineer role has now been filled.
+      `,
+    }));
+
+    assert.equal(match.job.id, 'job-2');
+    assert.equal(match.reason, 'company_title_match');
+  });
+
 });
