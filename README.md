@@ -214,7 +214,7 @@ Add to crontab (`crontab -e`):
 */30 * * * * /path/to/job-search/scripts/refresh-if-dashboard.sh
 ```
 
-Output is appended to `logs/refresh.log` (created automatically).
+Output is appended to `logs/refresh/YYYYMMDD.log` (created automatically).
 
 ### Daily scrape (optional, runs regardless of dashboard)
 
