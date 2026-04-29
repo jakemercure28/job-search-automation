@@ -14,13 +14,13 @@ mkdir -p "$LOG_DIR"
 NOW() { date +"%Y-%m-%dT%H:%M:%S%z"; }
 
 if ! nc -z localhost "$PORT" 2>/dev/null; then
-  echo "$(NOW()) [refresh-if-dashboard] dashboard not reachable on port $PORT — skipping" >> "$LOG"
+  echo "$(NOW) [refresh-if-dashboard] dashboard not reachable on port $PORT — skipping" >> "$LOG"
   exit 0
 fi
 
-echo "$(NOW()) [refresh-if-dashboard] dashboard detected on port $PORT — starting refresh" >> "$LOG"
+echo "$(NOW) [refresh-if-dashboard] dashboard detected on port $PORT — starting refresh" >> "$LOG"
 cd "$REPO"
 node scripts/refresh.js "$@" >> "$LOG" 2>&1
 EXIT=$?
-echo "$(NOW()) [refresh-if-dashboard] refresh exited ($EXIT)" >> "$LOG"
+echo "$(NOW) [refresh-if-dashboard] refresh exited ($EXIT)" >> "$LOG"
 exit $EXIT
