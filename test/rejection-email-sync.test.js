@@ -101,6 +101,75 @@ describe('rejection email sync', () => {
     }
   });
 
+  it('detects base64-encoded html rejection templates', () => {
+    const html = `
+      <div>Hi Jake,</div>
+      <div>Thank you for your interest in the Senior Software Engineer, Site Reliability role at Babylist.</div>
+      <div>After reviewing your application, we've decided to move forward with other candidates at this time.</div>
+      <div>The Babylist Talent Team</div>
+    `;
+    const message = makeMessage({
+      uid: 101,
+      subject: 'Thank You for Your Interest in Babylist',
+      fromAddress: 'no-reply@appreview.gem.com',
+      raw: `
+        Content-Type: multipart/alternative; boundary="part"
+
+        --part
+        Content-Type: text/html; charset="utf-8"
+        Content-Transfer-Encoding: base64
+
+        ${Buffer.from(html, 'utf8').toString('base64')}
+        --part--
+      `,
+    });
+
+    assert.equal(isRejectionEmail(message), true);
+  });
+
+  it('matches the Babylist base64 rejection to the applied Greenhouse job', () => {
+    const db = createDb();
+    insertJob(db, {
+      id: 'builtin-1',
+      company: 'Babylist',
+      title: 'Senior Software Engineer, Site Reliability',
+      url: 'https://job-boards.greenhouse.io/babylist/jobs/5690273004?gh_src=eeef46564us',
+      status: 'archived',
+    });
+    insertJob(db, {
+      id: 'greenhouse-1',
+      company: 'babylist',
+      title: 'Senior Software Engineer, Site Reliability',
+      url: 'https://job-boards.greenhouse.io/babylist/jobs/5690273004',
+      status: 'applied',
+    });
+
+    const html = `
+      <div>Hi Jake,</div>
+      <div>Thank you for your interest in the Senior Software Engineer, Site Reliability role at Babylist and for taking the time to apply.</div>
+      <div>After reviewing your application, we've decided to move forward with other candidates at this time.</div>
+      <div>The Babylist Talent Team</div>
+    `;
+    const match = matchRejectionEmail(db, makeMessage({
+      uid: 102,
+      subject: 'Thank You for Your Interest in Babylist',
+      fromAddress: 'no-reply@appreview.gem.com',
+      raw: `
+        Content-Type: multipart/alternative; boundary="part"
+
+        --part
+        Content-Type: text/html; charset="utf-8"
+        Content-Transfer-Encoding: base64
+
+        ${Buffer.from(html, 'utf8').toString('base64')}
+        --part--
+      `,
+    }));
+
+    assert.equal(match.job.id, 'greenhouse-1');
+    assert.equal(match.reason, 'company_title_match');
+  });
+
   it('matches and applies a rejection when company and title are both present', async () => {
     const db = createDb();
     insertJob(db, {
