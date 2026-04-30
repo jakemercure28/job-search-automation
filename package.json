@@ -8,6 +8,7 @@
     "scrape": "set -a && . .env && set +a && node scraper.js",
     "pipeline": "set -a && . .env && set +a && node pipeline.js",
     "refresh": "node scripts/refresh.js",
+    "help": "node scripts/npm-help.js",
     "daily": "bash scripts/run-daily.sh",
     "reclassify": "set -a && . .env && set +a && node scripts/reclassify-complexity.js",
     "sync-rejections": "node scripts/sync-rejection-emails.js",
