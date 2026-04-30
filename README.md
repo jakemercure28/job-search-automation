@@ -187,19 +187,9 @@ The seed script populates 20 fake jobs, pipeline stages, and a pre-computed mark
 ## Common commands
 
 ```bash
-npm run daily              # full pipeline: scrape → pipeline → retry
-npm run scrape             # scrape only
-npm run pipeline           # pipeline only (uses current jobs.json)
-npm run score              # rescore unscored jobs
-npm run retry-unscored     # retry jobs that failed scoring
-npm run sync-rejections    # manual one-shot of rejection email sync
-npm run apply -- list      # list scored jobs for manual application work
-npm run apply -- prep --job=<id>
-npm run apply -- resume --job=<id>
-npm run apply -- show --job=<id>
-npm run resume             # regenerate resume.pdf from resume.md
-npm run build:bookmarklet  # build the auto-fill bookmarklet from your env
-npm test                   # run the node test suite
+npm run help               # command reference with use cases and flags
+npm run help -- apply      # filter commands by group, command, flag, or text
+npm run help -- --json     # machine-readable command reference
 ```
 
 ## Scheduling
