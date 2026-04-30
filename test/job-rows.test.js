@@ -41,6 +41,28 @@ function insertRejectedJob(db, job) {
   );
 }
 
+function insertAppliedJob(db, job) {
+  db.prepare(`
+    INSERT INTO jobs (
+      id, title, company, url, platform, location, posted_at, description,
+      score, status, applied_at, stage, created_at, updated_at
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'applied', ?, 'applied', ?, ?)
+  `).run(
+    job.id,
+    job.title || 'Platform Engineer',
+    job.company || 'Acme',
+    job.url || `https://example.com/jobs/${job.id}`,
+    'Greenhouse',
+    'Remote',
+    job.posted_at,
+    'Build infrastructure',
+    job.score,
+    job.applied_at,
+    job.created_at || job.posted_at,
+    job.updated_at || job.applied_at
+  );
+}
+
 describe('renderJobTable', () => {
   it('renders company badges with stable ordering and an applied-date badge', () => {
     const html = renderJobTable([
@@ -172,6 +194,27 @@ describe('renderJobTable', () => {
 });
 
 describe('fetchFilteredJobs', () => {
+  it('sorts applied jobs by the visible posted date when date sort is active', () => {
+    const db = createDb();
+    insertAppliedJob(db, {
+      id: 'newest-applied-older-post',
+      score: 8,
+      posted_at: '2026-04-10',
+      applied_at: '2026-04-29T12:00:00Z',
+    });
+    insertAppliedJob(db, {
+      id: 'older-applied-newer-post',
+      score: 7,
+      posted_at: '2026-04-28',
+      applied_at: '2026-04-20T12:00:00Z',
+    });
+
+    assert.deepEqual(
+      fetchFilteredJobs(db, 'applied', 'date').map((job) => job.id),
+      ['older-applied-newer-post', 'newest-applied-older-post']
+    );
+  });
+
   it('sorts rejected jobs by rejection date by default sort and by score when requested', () => {
     const db = createDb();
     insertRejectedJob(db, {
