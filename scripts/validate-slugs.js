@@ -19,14 +19,25 @@ const {
   WORKABLE_COMPANIES,
   ASHBY_COMPANIES,
   WORKDAY_COMPANIES,
-} = require('../profiles/example/companies.js');
+  RIPPLING_COMPANIES,
+} = require('../config/companies');
+
+const fs = require('fs');
+const path = require('path');
+const createLogger = require('../lib/logger');
+const logPaths = require('../lib/log-paths');
+
+const log = createLogger('slug-health', { logFile: logPaths.daily('slug-health') });
 
 const TIMEOUT_MS = 20000;
 const DELAY_MS   = 120;
 
-const args       = process.argv.slice(2);
-const filterAts  = args.includes('--ats') ? args[args.indexOf('--ats') + 1]?.toLowerCase() : null;
-const brokenOnly = args.includes('--broken-only');
+function parseArgs(argv) {
+  return {
+    filterAts: argv.includes('--ats') ? argv[argv.indexOf('--ats') + 1]?.toLowerCase() : null,
+    brokenOnly: argv.includes('--broken-only'),
+  };
+}
 
 function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
 
@@ -96,16 +107,38 @@ async function checkWorkable(slug) {
   return { result: count > 0 ? 'ok' : 'empty', count };
 }
 
+async function checkRippling(slug) {
+  const res = await safeFetch(`https://ats.rippling.com/${slug}/jobs`, {
+    headers: { 'Accept': 'text/html,application/xhtml+xml', 'User-Agent': 'Mozilla/5.0' },
+  });
+  if (!res.ok) return { result: 'broken', note: `HTTP ${res.status || res._error}` };
+  const html = await res.text().catch(() => '');
+  const match = html.match(/<script id="__NEXT_DATA__" type="application\/json">([\s\S]*?)<\/script>/);
+  if (!match) return { result: 'broken', note: 'Missing Rippling job data' };
+
+  let data;
+  try {
+    data = JSON.parse(match[1]);
+  } catch (e) {
+    return { result: 'broken', note: `Invalid Rippling job data: ${e.message}` };
+  }
+
+  const queries = data?.props?.pageProps?.dehydratedState?.queries || [];
+  const jobsQuery = queries.find(q => Array.isArray(q.queryKey) && q.queryKey[2] === 'job-posts');
+  const jobsData = jobsQuery?.state?.data;
+  const count = jobsData?.totalItems ?? jobsData?.total ?? jobsData?.items?.length ?? 0;
+  return { result: count > 0 ? 'ok' : 'empty', count };
+}
+
 // ---------------------------------------------------------------------------
 // Runner
 // ---------------------------------------------------------------------------
 
-const allBroken = []; // collect broken across all ATS for JSON output
-
-async function runBatch(name, items, checkFn, labelFn, delayMs = DELAY_MS) {
-  if (filterAts && filterAts !== name.toLowerCase()) return null;
+async function runBatch(name, items, checkFn, labelFn, options, allBroken, delayMs = DELAY_MS) {
+  if (options.filterAts && options.filterAts !== name.toLowerCase()) return null;
 
   const ok = [], empty = [], broken = [];
+  log.info('ATS slug validation started', { ats: name, entries: items.length });
   console.log(`\n${'─'.repeat(50)}`);
   console.log(`${name} (${items.length} entries)`);
   console.log('─'.repeat(50));
@@ -116,13 +149,14 @@ async function runBatch(name, items, checkFn, labelFn, delayMs = DELAY_MS) {
 
     if (result === 'ok') {
       ok.push(label);
-      if (!brokenOnly) console.log(`  ✓ ${label}  (${count} jobs)`);
+      if (!options.brokenOnly) console.log(`  ✓ ${label}  (${count} jobs)`);
     } else if (result === 'empty') {
       empty.push(label);
-      if (!brokenOnly) console.log(`  ○ ${label}  (no current postings)`);
+      if (!options.brokenOnly) console.log(`  ○ ${label}  (no current postings)`);
     } else {
       broken.push({ label, note });
       allBroken.push({ ats: name, slug: label, note });
+      log.warn('Broken ATS slug detected', { ats: name, slug: label, note });
       console.log(`  ✗ ${label}  — ${note}`);
     }
 
@@ -130,29 +164,57 @@ async function runBatch(name, items, checkFn, labelFn, delayMs = DELAY_MS) {
   }
 
   console.log(`\n  ok: ${ok.length}  empty: ${empty.length}  broken: ${broken.length}`);
-  return { ok: ok.length, empty: empty.length, broken: broken.length };
+  const summary = { ok: ok.length, empty: empty.length, broken: broken.length };
+  log.info('ATS slug validation complete', { ats: name, entries: items.length, ...summary });
+  return summary;
 }
 
 // ---------------------------------------------------------------------------
 // Main
 // ---------------------------------------------------------------------------
 
-(async () => {
+function activeProfileDir() {
+  return process.env.JOB_PROFILE_DIR
+    ? path.resolve(process.env.JOB_PROFILE_DIR)
+    : path.join(__dirname, '..', 'profiles', 'example');
+}
+
+function atsBatches() {
+  return [
+    ['Greenhouse', GREENHOUSE_COMPANIES || [], checkGreenhouse, s => s],
+    ['Lever',      LEVER_COMPANIES || [],      checkLever,      s => s],
+    ['Ashby',      ASHBY_COMPANIES || [],      checkAshby,      s => s],
+    ['Workable',   WORKABLE_COMPANIES || [],   checkWorkable,   s => s,       800],
+    ['Workday',    WORKDAY_COMPANIES || [],    checkWorkday,    c => c.label || c.sub],
+    ['Rippling',   RIPPLING_COMPANIES || [],   checkRippling,   s => s,       300],
+  ];
+}
+
+async function main(argv = process.argv.slice(2)) {
+  const options = parseArgs(argv);
+  const allBroken = [];
+  const byAts = {};
+  const profileDir = activeProfileDir();
+
   console.log('Validating ATS slugs in companies.js...');
-  if (filterAts)  console.log(`ATS filter: ${filterAts}`);
-  if (brokenOnly) console.log('Mode: broken only');
+  if (options.filterAts)  console.log(`ATS filter: ${options.filterAts}`);
+  if (options.brokenOnly) console.log('Mode: broken only');
+  log.info('ATS slug validation run started', {
+    profileDir,
+    atsFilter: options.filterAts || 'all',
+    brokenOnly: options.brokenOnly ? 1 : 0,
+  });
 
   const totals = { ok: 0, empty: 0, broken: 0 };
 
-  for (const [name, items, fn, labelFn] of [
-    ['Greenhouse', GREENHOUSE_COMPANIES, checkGreenhouse, s => s],
-    ['Lever',      LEVER_COMPANIES,      checkLever,      s => s],
-    ['Ashby',      ASHBY_COMPANIES,      checkAshby,      s => s],
-    ['Workable',   WORKABLE_COMPANIES,   checkWorkable,   s => s,       800],
-    ['Workday',    WORKDAY_COMPANIES,    checkWorkday,    c => c.label],
-  ]) {
-    const r = await runBatch(name, items, fn, labelFn);
-    if (r) { totals.ok += r.ok; totals.empty += r.empty; totals.broken += r.broken; }
+  for (const [name, items, fn, labelFn, delayMs] of atsBatches()) {
+    const r = await runBatch(name, items, fn, labelFn, options, allBroken, delayMs);
+    if (r) {
+      byAts[name] = r;
+      totals.ok += r.ok;
+      totals.empty += r.empty;
+      totals.broken += r.broken;
+    }
   }
 
   console.log(`\n${'='.repeat(50)}`);
@@ -162,12 +224,35 @@ async function runBatch(name, items, checkFn, labelFn, delayMs = DELAY_MS) {
   // Write JSON summary for dashboard consumption
   const summary = {
     timestamp: new Date().toISOString(),
+    profileDir,
     total: totals,
+    byAts,
     broken: allBroken,
   };
-  const jsonPath = require('path').join(__dirname, '../slug-health.json');
-  require('fs').writeFileSync(jsonPath, JSON.stringify(summary, null, 2));
+  const jsonPath = path.join(__dirname, '../slug-health.json');
+  fs.writeFileSync(jsonPath, JSON.stringify(summary, null, 2));
   console.log(`\nWrote ${jsonPath}`);
+  log.info('ATS slug validation run complete', {
+    profileDir,
+    ok: totals.ok,
+    empty: totals.empty,
+    broken: totals.broken,
+    output: jsonPath,
+  });
 
   if (totals.broken > 0) process.exit(1);
-})();
+}
+
+if (require.main === module) {
+  main().catch((err) => {
+    log.error('ATS slug validation failed', { error: err.message });
+    console.error(err.stack || err.message);
+    process.exit(1);
+  });
+}
+
+module.exports = {
+  parseArgs,
+  atsBatches,
+  activeProfileDir,
+};

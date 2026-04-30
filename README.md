@@ -196,7 +196,7 @@ npm run help -- --json     # machine-readable command reference
 
 ### Refresh pipeline (recommended)
 
-`scripts/refresh-if-dashboard.sh` runs the full pipeline — scrape → score → check descriptions → check closed jobs → market research → rejection email sync — but only when the dashboard is already running on its port. Safe to fire frequently; it skips silently when you're not using the dashboard.
+`scripts/refresh-if-dashboard.sh` runs the full pipeline — scrape → score → check descriptions → check closed jobs → market research → rejection email sync → slug validation — but only when the dashboard is already running on its port. Safe to fire frequently; it skips silently when you're not using the dashboard.
 
 Add to crontab (`crontab -e`):
 
