@@ -18,8 +18,8 @@
     "resume": "node scripts/generate-resume.js",
     "build:bookmarklet": "set -a && . .env && set +a && node scripts/build-bookmarklet.js",
     "test": "node --test",
-    "validate-slugs": "set -a && . .env && set +a && node scripts/validate-slugs.js",
-    "validate-slugs:broken": "set -a && . .env && set +a && node scripts/validate-slugs.js --broken-only"
+    "validate-slugs": "node --env-file=.env scripts/validate-slugs.js",
+    "validate-slugs:broken": "node --env-file=.env scripts/validate-slugs.js --broken-only"
   },
   "dependencies": {
     "better-sqlite3": "^12.9.0",
