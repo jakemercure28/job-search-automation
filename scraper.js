@@ -102,7 +102,7 @@ async function scrapeAll() {
   const ageFiltered = unique.filter((j) => !knownIds.has(j.id) || isRecent(j.postedAt || ''));
 
   const locationFiltered = ageFiltered.filter((j) => isLocationAllowed(j.location));
-  const { jobs: resolvedJobs, report: atsResolutionReport } = await normalizeScrapedJobs(locationFiltered, { log });
+  const { jobs: resolvedJobs, report: atsResolutionReport } = await normalizeScrapedJobs(locationFiltered, { log, useGemini: true });
 
   log.info('Scrape complete', {
     beforeFilter: unique.length,

@@ -1,42 +1,32 @@
 'use strict';
 
-const { sleep, stripHtml, safeFetch } = require('../lib/utils');
+const { sleep } = require('../lib/utils');
 const { WORKABLE_COMPANIES } = require('../config/companies');
 const { matchesSearchTerms } = require('../lib/scraper-utils');
+const { isLocationAllowed } = require('../lib/location-filter');
+const { fetchWorkableAccountJobs } = require('../lib/workable');
+const log = require('../lib/logger')('workable-scraper');
 
 async function scrapeWorkable() {
   const jobs = [];
 
   for (const company of WORKABLE_COMPANIES) {
-    const url = `https://apply.workable.com/api/v3/accounts/${company}/jobs`;
-    const res = await safeFetch(
-      url,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ query: '', location: [], department: [], worktype: [], remote: [] }),
-      },
-      `workable/${company}`
-    );
-    if (!res) { await sleep(400); continue; }
+    const result = await fetchWorkableAccountJobs(company);
+    log.info('Workable slug checked', {
+      slug: company,
+      result: result.result,
+      count: result.count,
+      attempts: result.attempts.map((attempt) => ({
+        endpoint: attempt.endpoint,
+        status: attempt.status,
+        count: attempt.count,
+      })),
+    });
 
-    let data;
-    try { data = await res.json(); } catch { await sleep(400); continue; }
-
-    for (const job of data.results || []) {
+    for (const job of result.jobs || []) {
       if (!matchesSearchTerms(job.title)) continue;
-
-      const jobUrl = `https://apply.workable.com/${company}/j/${job.shortcode}`;
-      jobs.push({
-        id: `workable-${company}-${job.shortcode}`,
-        platform: 'Workable',
-        title: job.title,
-        company: company,
-        url: jobUrl,
-        postedAt: job.created_at,
-        description: stripHtml(job.description || ''),
-        location: job.location || '',
-      });
+      if (!isLocationAllowed(job.location)) continue;
+      jobs.push(job);
     }
 
     await sleep(400);
