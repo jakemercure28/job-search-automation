@@ -71,7 +71,7 @@ async function run() {
   const scrapedRaw = JSON.parse(fs.readFileSync(jobsJsonPath, 'utf8'));
 
   const db = getDb();
-  const { jobs: scraped, report: atsResolutionReport } = await normalizeScrapedJobs(scrapedRaw, { log });
+  const { jobs: scraped, report: atsResolutionReport } = await normalizeScrapedJobs(scrapedRaw, { log, useGemini: true });
   if (atsResolutionReport.length) {
     log.info('ATS resolution before import', {
       canonicalized: atsResolutionReport.filter((row) => row.action === 'canonicalized').length,
@@ -137,20 +137,20 @@ async function run() {
       log.info('Auto-archived older pending duplicates', { count: pendingDedupResult.changes });
     }
 
-    // Archive Built In jobs that duplicate Greenhouse or Ashby (source platforms preferred)
-    const builtInDupesResult = db.prepare(`
+    // Archive alternate-source jobs that duplicate a primary ATS row.
+    const alternateDupesResult = db.prepare(`
       UPDATE jobs SET status = 'archived', updated_at = datetime('now')
-      WHERE platform = 'Built In'
+      WHERE LOWER(COALESCE(platform, '')) NOT IN ('ashby', 'greenhouse', 'lever', 'workday')
         AND EXISTS (
           SELECT 1 FROM jobs source
-          WHERE source.platform IN ('Greenhouse', 'Ashby')
+          WHERE LOWER(COALESCE(source.platform, '')) IN ('ashby', 'greenhouse', 'lever', 'workday')
             AND LOWER(TRIM(source.title)) = LOWER(TRIM(jobs.title))
             AND LOWER(TRIM(source.company)) = LOWER(TRIM(jobs.company))
             AND source.id != jobs.id
         )
     `).run();
-    if (builtInDupesResult.changes > 0) {
-      log.info('Auto-archived Built In duplicates (prefer Greenhouse/Ashby)', { count: builtInDupesResult.changes });
+    if (alternateDupesResult.changes > 0) {
+      log.info('Auto-archived alternate-source duplicates (prefer primary ATS)', { count: alternateDupesResult.changes });
     }
 
     return { inserted, skipped };
