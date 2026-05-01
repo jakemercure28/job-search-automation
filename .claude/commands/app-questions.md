@@ -31,6 +31,22 @@ For each question:
 
 After all answers are drafted, note any concerns about fit or deal breakers at the end.
 
-## Step 4: Format output
+## Step 4: Voice-check all answers
 
-Present each question with its answer clearly labeled. Make it easy to copy each answer into the form individually.
+For every answer longer than one sentence, run it through the voice checker before showing it to the user:
+
+```bash
+node scripts/check-voice.js "ANSWER_TEXT"
+```
+
+- If local checks fail (kill word, dash connector, banned opener): rewrite immediately and re-check.
+- If Sapling score >= 50% AI: rewrite to add roughness (fragments, asides, informal phrasing), re-check.
+- If HuggingFace score >= 30% AI: rewrite and re-check.
+- Keep iterating until all checks pass before showing the answer.
+- Skip for single-sentence, yes/no, city/state, and select-field answers.
+
+After all answers pass, note how many rewrites were needed and show the final Sapling and HuggingFace scores alongside each answer.
+
+## Step 5: Format output
+
+Present each question with its answer clearly labeled. Include voice check results (Sapling score, HuggingFace score, or "skipped" for short fields). Make it easy to copy each answer into the form individually.
