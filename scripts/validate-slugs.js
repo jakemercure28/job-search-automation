@@ -32,9 +32,9 @@ const { fetchWorkableAccountJobs } = require('../lib/workable');
 
 const log = createLogger('slug-health', { logFile: logPaths.daily('slug-health') });
 
-const TIMEOUT_MS = 20000;
+const TIMEOUT_MS = 8000;
 const DELAY_MS   = 120;
-const MAX_ATTEMPTS = 3;
+const MAX_ATTEMPTS = 2;
 const RETRY_BASE_MS = 750;
 const RETRY_MAX_MS = 2500;
 
@@ -626,7 +626,7 @@ async function main(argv = process.argv.slice(2)) {
 }
 
 if (require.main === module) {
-  main().catch((err) => {
+  main().then(() => process.exit(0)).catch((err) => {
     log.error('ATS slug validation failed', { error: err.message });
     console.error(err.stack || err.message);
     process.exit(1);

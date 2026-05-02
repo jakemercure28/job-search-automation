@@ -240,7 +240,7 @@ async function run() {
 }
 
 if (require.main === module) {
-  run().catch((err) => {
+  run().then(() => process.exit(0)).catch((err) => {
     log.error('Fatal error', { error: err.message });
     process.exit(1);
   });

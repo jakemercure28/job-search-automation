@@ -215,7 +215,7 @@ async function main({ dbPath = DB_PATH, database = null } = {}) {
 }
 
 if (require.main === module) {
-  main().catch(err => {
+  main().then(() => process.exit(0)).catch(err => {
     log.error('check-closed error', { error: err.message });
     process.exit(1);
   });

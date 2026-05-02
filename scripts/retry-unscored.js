@@ -78,7 +78,7 @@ async function run() {
 }
 
 if (require.main === module) {
-  run().catch((error) => {
+  run().then(() => process.exit(0)).catch((error) => {
     log.error('Fatal retry scoring error', { error: error.message });
     process.exit(1);
   });

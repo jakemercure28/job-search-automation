@@ -13,6 +13,14 @@ mkdir -p "$LOG_DIR"
 
 NOW() { date +"%Y-%m-%dT%H:%M:%S%z"; }
 
+LOCK="/tmp/refresh-dashboard.lock"
+if [ -f "$LOCK" ] && kill -0 "$(cat "$LOCK")" 2>/dev/null; then
+  echo "$(NOW) [refresh-if-dashboard] already running (pid $(cat "$LOCK")) — skipping" >> "$LOG"
+  exit 0
+fi
+echo $$ > "$LOCK"
+trap "rm -f '$LOCK'" EXIT
+
 if ! nc -z localhost "$PORT" 2>/dev/null; then
   echo "$(NOW) [refresh-if-dashboard] dashboard not reachable on port $PORT — skipping" >> "$LOG"
   exit 0

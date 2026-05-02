@@ -79,7 +79,7 @@ async function main() {
 }
 
 if (require.main === module) {
-  main().catch((error) => {
+  main().then(() => process.exit(0)).catch((error) => {
     process.stderr.write(`${error.message}\n`);
     process.exit(1);
   });
