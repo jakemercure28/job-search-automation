@@ -626,7 +626,7 @@ async function main(argv = process.argv.slice(2)) {
 }
 
 if (require.main === module) {
-  main().catch((err) => {
+  main().then(() => process.exit(0)).catch((err) => {
     log.error('ATS slug validation failed', { error: err.message });
     console.error(err.stack || err.message);
     process.exit(1);
