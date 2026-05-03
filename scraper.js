@@ -32,7 +32,6 @@ const { scrapeRippling }   = require('./scrapers/rippling');
 
 const { isLocationAllowed } = require('./lib/location-filter');
 const { MAX_AGE_DAYS }      = require('./config/companies');
-const { normalizeScrapedJobs } = require('./scripts/resolve-ats-aliases');
 
 const MS_PER_DAY = 86_400_000;
 
@@ -102,20 +101,16 @@ async function scrapeAll() {
   const ageFiltered = unique.filter((j) => !knownIds.has(j.id) || isRecent(j.postedAt || ''));
 
   const locationFiltered = ageFiltered.filter((j) => isLocationAllowed(j.location));
-  const { jobs: resolvedJobs, report: atsResolutionReport } = await normalizeScrapedJobs(locationFiltered, { log, useGemini: true });
 
   log.info('Scrape complete', {
     beforeFilter: unique.length,
     afterFilter: locationFiltered.length,
-    afterAtsResolution: resolvedJobs.length,
-    atsResolved: atsResolutionReport.filter((row) => row.action === 'canonicalized').length,
-    atsUnsupported: atsResolutionReport.filter((row) => row.action === 'skipped-unsupported').length,
   });
 
-  // Write results to jobs.json for pipeline.js to consume
-  fs.writeFileSync(jobsJsonPath, JSON.stringify(resolvedJobs, null, 2));
+  // Write raw jobs to jobs.json — ATS resolution happens in pipeline.js
+  fs.writeFileSync(jobsJsonPath, JSON.stringify(locationFiltered, null, 2));
 
-  return resolvedJobs;
+  return locationFiltered;
 }
 
 // Run standalone
