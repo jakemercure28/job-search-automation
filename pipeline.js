@@ -71,7 +71,15 @@ async function run() {
   const scrapedRaw = JSON.parse(fs.readFileSync(jobsJsonPath, 'utf8'));
 
   const db = getDb();
-  const { jobs: scraped, report: atsResolutionReport } = await normalizeScrapedJobs(scrapedRaw, { log, useGemini: true });
+  // Skip ATS resolution for alternate-platform jobs already in the DB (title+company match).
+  // They were processed on a previous run; re-resolving them is wasted network work and Gemini calls.
+  const existing = getExistingJobKeys(db);
+  const needsResolution = scrapedRaw.filter((j) => {
+    if (isPrimaryPlatform(j.platform)) return true;
+    const key = (j.title || '').trim().toLowerCase() + '|||' + (j.company || '').trim().toLowerCase();
+    return !existing.has(key);
+  });
+  const { jobs: scraped, report: atsResolutionReport } = await normalizeScrapedJobs(needsResolution, { log, useGemini: true });
   if (atsResolutionReport.length) {
     log.info('ATS resolution before import', {
       canonicalized: atsResolutionReport.filter((row) => row.action === 'canonicalized').length,
@@ -79,9 +87,6 @@ async function run() {
       unresolved: atsResolutionReport.filter((row) => row.action === 'unresolved').length,
     });
   }
-
-  // Insert and deduplicate in a single transaction for atomicity
-  const existing = getExistingJobKeys(db);
   const insertAndDedup = db.transaction((scraped) => {
     let skipped = 0;
     let inserted = 0;
