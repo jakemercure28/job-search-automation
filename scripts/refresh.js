@@ -11,6 +11,7 @@ const { formatLocalTime, formatLocalTimestamp } = require('../lib/time-format');
 function parseArgs(argv) {
   const flags = new Set(argv.filter((arg) => arg.startsWith('--')));
   return {
+    skipDiscover: flags.has('--skip-discover'),
     skipDescriptions: flags.has('--skip-descriptions'),
     skipClosedCheck: flags.has('--skip-closed-check'),
     skipMarketResearch: flags.has('--skip-market-research'),
@@ -107,6 +108,7 @@ Optional local-only follow-up steps:
   validate ATS slugs
 
 Flags:
+  --skip-discover        Skip Gemini company discovery
   --skip-descriptions    Skip suspicious JD checks
   --skip-closed-check    Skip closed-job verification
   --skip-market-research Skip market research refresh
@@ -132,6 +134,10 @@ function main() {
   console.log(`  profile  ${active.profileDir}`);
   console.log(`  db       ${active.dbPath}`);
   console.log('─'.repeat(60));
+
+  if (!args.skipDiscover) {
+    runStep(repoRoot, 'Discovering new companies', ['scripts/discover-companies.js'], { optional: true });
+  }
 
   runStep(repoRoot, 'Scraping jobs', ['scraper.js']);
   runStep(repoRoot, 'Running pipeline', ['pipeline.js']);
