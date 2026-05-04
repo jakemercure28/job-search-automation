@@ -126,17 +126,52 @@ function dedupeNormalizedJobs(jobs, report) {
   return [...byKey.values()];
 }
 
+const ATS_RESOLVE_CONCURRENCY = 6;
+
 async function normalizeScrapedJobs(jobs, options = {}) {
+  const resolutions = new Array(jobs.length);
+
+  // Resolve alternate-platform jobs in parallel (bounded concurrency).
+  // Primary-platform jobs are passed through without network work.
+  // Gemini's own rate limiter serializes Gemini calls globally, so parallel
+  // outer workers don't break the 12-req/min free-tier limit.
+  await new Promise((resolve) => {
+    let active = 0;
+    let idx = 0;
+
+    function next() {
+      while (active < ATS_RESOLVE_CONCURRENCY && idx < jobs.length) {
+        const i = idx++;
+        const job = jobs[i];
+        active++;
+        const work = isPrimaryPlatform(job.platform)
+          ? Promise.resolve({ status: 'primary', job, platform: job.platform, evidence: {} })
+          : resolveAlternateJob(job, options);
+        work.then((resolution) => {
+          resolutions[i] = resolution;
+          active--;
+          if (idx >= jobs.length && active === 0) resolve();
+          else next();
+        });
+      }
+    }
+
+    next();
+    if (jobs.length === 0) resolve();
+  });
+
   const normalized = [];
   const report = [];
 
-  for (const job of jobs) {
+  for (let i = 0; i < jobs.length; i++) {
+    const job = jobs[i];
+    const resolution = resolutions[i];
+
     if (isPrimaryPlatform(job.platform)) {
       normalized.push(job);
       continue;
     }
 
-    const resolution = await resolveAlternateJob(job, options);
     if (resolution.status === 'primary' && resolution.job) {
       normalized.push(resolution.job);
       report.push({

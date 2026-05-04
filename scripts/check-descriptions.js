@@ -15,6 +15,10 @@
 
 const fs = require('fs');
 const path = require('path');
+const createLogger = require('../lib/logger');
+const logPaths = require('../lib/log-paths');
+
+const log = createLogger('check-descriptions', { logFile: logPaths.daily('check-descriptions') });
 
 const CRITICAL = 50;   // definitely broken — null/empty or just a few words
 const WARN     = 300;  // suspicious — likely a snippet, not the full JD
@@ -52,20 +56,20 @@ if (require.main === module) {
   const { total, critical, warn, ok } = checkDescriptions(db);
 
   if (!total) {
-    console.log('[check-descriptions] No new jobs today — skipping.');
+    log.info('No new jobs today — skipping');
     writeJdHealth({ total: 0, critical: [], warn: [] });
     process.exit(0);
   }
 
   for (const j of critical) {
-    console.error(`[check-descriptions] CRITICAL  ${j.platform.padEnd(14)} ${j.company} / "${j.title}" — ${j.len} chars`);
+    log.error('Critical: description too short', { platform: j.platform, company: j.company, title: j.title, chars: j.len });
   }
   for (const j of warn) {
-    console.log(`[check-descriptions] SHORT     ${j.platform.padEnd(14)} ${j.company} / "${j.title}" — ${j.len} chars`);
+    log.warn('Short description', { platform: j.platform, company: j.company, title: j.title, chars: j.len });
   }
 
   const status = critical.length > 0 ? 'FAIL' : warn.length > 0 ? 'WARN' : 'OK';
-  console.log(`[check-descriptions] ${status} — ${total} new jobs: ${critical.length} critical, ${warn.length} short, ${ok} ok`);
+  log.info('Description quality check complete', { status, total, critical: critical.length, short: warn.length, ok });
 
   writeJdHealth({ total, critical, warn });
 

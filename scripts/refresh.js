@@ -85,7 +85,7 @@ function runStep(repoRoot, label, args, { optional = false } = {}) {
     return;
   }
   if (optional) {
-    console.warn(`${formatLocalTime()}  [refresh]  ${label} skipped — exit ${result.status || 1} (${elapsed(start)})`);
+    console.warn(`${formatLocalTime()}  [refresh]  ${label} done with warnings — exit ${result.status || 1} (${elapsed(start)})`);
     return;
   }
 

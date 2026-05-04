@@ -487,6 +487,36 @@ function issueEntry(ats, slug, result, replacementCandidates = []) {
   return entry;
 }
 
+const SLUG_CHECK_CONCURRENCY = 12;
+
+async function checkOneSlug(name, item, checkFn, labelFn, options, issueBuckets, delayMs) {
+  const label = labelFn(item);
+  await sleep(delayMs); // courteous minimum gap per worker slot
+  const checkResult = await runCheckWithRetries(name, label, item, checkFn);
+  const { result, count, note } = checkResult;
+  const out = { result, label, count, note, checkResult };
+
+  if (result === 'broken') {
+    const replacementCandidates = await discoverReplacementCandidates(name, label);
+    const issue = issueEntry(name, label, checkResult, replacementCandidates);
+    issueBuckets.broken.push(issue);
+    log.warn('Broken ATS slug detected', {
+      ats: name, slug: label, note,
+      status: checkResult.status || 0,
+      attempts: checkResult.attempts,
+      replacementCandidates,
+    });
+    out.issue = issue;
+    out.replacementCandidates = replacementCandidates;
+  } else if (result === 'blocked') {
+    issueBuckets.blocked.push(issueEntry(name, label, checkResult));
+  } else if (result === 'transient') {
+    issueBuckets.transient.push(issueEntry(name, label, checkResult));
+  }
+
+  return out;
+}
+
 async function runBatch(name, items, checkFn, labelFn, options, issueBuckets, delayMs = DELAY_MS) {
   if (options.filterAts && options.filterAts !== name.toLowerCase()) return null;
 
@@ -496,11 +526,32 @@ async function runBatch(name, items, checkFn, labelFn, options, issueBuckets, de
   console.log(`${name} (${items.length} entries)`);
   console.log('─'.repeat(50));
 
-  for (const item of items) {
-    const label = labelFn(item);
-    const checkResult = await runCheckWithRetries(name, label, item, checkFn);
-    const { result, count, note } = checkResult;
+  // Run slug checks in parallel with a bounded concurrency cap.
+  // Results are collected in arrival order; issue buckets are populated as
+  // each worker completes (safe because JS is single-threaded).
+  const results = await new Promise((resolve) => {
+    const out = new Array(items.length);
+    let active = 0;
+    let idx = 0;
 
+    function next() {
+      while (active < SLUG_CHECK_CONCURRENCY && idx < items.length) {
+        const i = idx++;
+        active++;
+        checkOneSlug(name, items[i], checkFn, labelFn, options, issueBuckets, delayMs).then((r) => {
+          out[i] = r;
+          active--;
+          if (idx >= items.length && active === 0) resolve(out);
+          else next();
+        });
+      }
+    }
+
+    next();
+    if (items.length === 0) resolve(out);
+  });
+
+  for (const { result, label, count, note, replacementCandidates } of results) {
     if (result === 'ok') {
       ok.push(label);
       if (!options.brokenOnly) console.log(`  ✓ ${label}  (${count} jobs)`);
@@ -508,35 +559,18 @@ async function runBatch(name, items, checkFn, labelFn, options, issueBuckets, de
       empty.push(label);
       if (!options.brokenOnly) console.log(`  ○ ${label}  (no current postings)`);
     } else if (result === 'broken') {
-      const replacementCandidates = await discoverReplacementCandidates(name, label);
-      const issue = issueEntry(name, label, checkResult, replacementCandidates);
-      broken.push(issue);
-      issueBuckets.broken.push(issue);
-      log.warn('Broken ATS slug detected', {
-        ats: name,
-        slug: label,
-        note,
-        status: checkResult.status || 0,
-        attempts: checkResult.attempts,
-        replacementCandidates,
-      });
-      const replacements = replacementCandidates.length
+      broken.push(label);
+      const reps = (replacementCandidates || []).length
         ? `; replacements: ${replacementCandidates.map(c => `${c.ats}/${c.slug}`).join(', ')}`
         : '';
-      console.log(`  ✗ ${label}  — ${note}${replacements}`);
+      console.log(`  ✗ ${label}  — ${note}${reps}`);
     } else if (result === 'blocked') {
-      const issue = issueEntry(name, label, checkResult);
-      blocked.push(issue);
-      issueBuckets.blocked.push(issue);
+      blocked.push(label);
       console.log(`  ◌ ${label}  — ${note || 'blocked'}`);
     } else if (result === 'transient') {
-      const issue = issueEntry(name, label, checkResult);
-      transient.push(issue);
-      issueBuckets.transient.push(issue);
+      transient.push(label);
       console.log(`  ! ${label}  — ${note || 'transient'}`);
     }
-
-    await sleep(delayMs);
   }
 
   console.log(`\n  ok: ${ok.length}  empty: ${empty.length}  broken: ${broken.length}  blocked: ${blocked.length}  transient: ${transient.length}`);

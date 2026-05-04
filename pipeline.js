@@ -79,12 +79,15 @@ async function run() {
     const key = (j.title || '').trim().toLowerCase() + '|||' + (j.company || '').trim().toLowerCase();
     return !existing.has(key);
   });
+  const atsStart = Date.now();
+  log.info('ATS resolution started', { count: needsResolution.length });
   const { jobs: scraped, report: atsResolutionReport } = await normalizeScrapedJobs(needsResolution, { log, useGemini: true });
   if (atsResolutionReport.length) {
     log.info('ATS resolution before import', {
       canonicalized: atsResolutionReport.filter((row) => row.action === 'canonicalized').length,
       unsupported: atsResolutionReport.filter((row) => row.action === 'skipped-unsupported').length,
       unresolved: atsResolutionReport.filter((row) => row.action === 'unresolved').length,
+      ms: Date.now() - atsStart,
     });
   }
   const insertAndDedup = db.transaction((scraped) => {
